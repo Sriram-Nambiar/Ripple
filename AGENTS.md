@@ -1,28 +1,83 @@
 # AI Agent Instructions
 
-## Project
+## Mission
 
-Ripple analyses a GitHub Pull Request, builds a static dependency graph of repository source files, estimates the potential blast radius of changed files, and displays the result in a web dashboard.
+Ripple is a pull-request impact analysis platform that helps reviewers understand which files and systems may be affected by code changes before merge. The goal is to make blast-radius analysis transparent, explainable, and operationally safe.
 
-Read `docs/01-project-overview.md` for the product summary. Use `docs/README.md` to find task-specific documentation.
+This repository is expected to be extended and maintained in production-like conditions. Agents must prioritize correctness, security, maintainability, and clear documentation over speed or cleverness.
+
+## Required workflow
+
+1. Start with the documentation relevant to the task. Do not read the entire docs tree unless needed.
+2. Inspect the current implementation before changing behavior.
+3. Preserve established interfaces and contracts unless the task explicitly requires a documented change.
+4. Keep changes focused and reviewable.
+5. Update docs when architecture, contracts, assumptions, or product behavior change.
+6. Validate using the smallest relevant test, lint, or type-check command available.
+
+## Project standards
+
+- Use TypeScript and current repository conventions.
+- Avoid `any` where practical and prefer explicit, typed interfaces.
+- Validate external input and handle errors safely.
+- Keep the analysis engine independent from Express and React-specific code.
+- Treat static analysis as probabilistic impact assessment, not proof of runtime breakage.
+- Do not silently hide uncertainty, parser limitations, or unresolved imports.
+
+## Product and engineering principles
+
+- Explainability is a product requirement. If a file is marked as affected, the root cause should be understandable.
+- Production-grade software must fail safely, degrade gracefully, and preserve user trust.
+- Security and privacy are mandatory: no tokens, secrets, or credentials should be exposed to browser clients or committed to the repository.
+- Data retention, permissions, observability, and incident response matter as much as implementation details.
+- Keep documentation aligned with the code and with operational reality.
+
+## Documentation contract
+
+When working in this repository, the canonical docs are:
+
+- `docs/README.md` for the index and usage guide
+- `docs/01-project-overview.md` for product intent and scope
+- `docs/02-requirements.md` for functional and non-functional requirements
+- `docs/03-system-architecture.md` for system boundaries and flows
+- `docs/04-dependency-analysis.md` for graph logic and impact analysis
+- `docs/05-api-and-database.md` for API and persistence contracts
+- `docs/06-frontend-specification.md` for user experience and UI expectations
+
+Do not silently change shared contracts described in these documents.
 
 ## Working rules
 
-1. Inspect the existing code before creating or changing files. Follow established patterns unless they conflict with an explicit project decision in `docs/`.
-2. Load only the documentation relevant to the task. Do not read the entire `docs/` folder for every small change.
-3. Keep the analysis engine independent of Express and the React application. It should accept repository/PR analysis inputs and return a structured result.
-4. Follow `docs/04-dependency-analysis.md` for import resolution, graph direction, reverse traversal, limitations, and the MVP risk heuristic.
-5. Follow `docs/05-api-and-database.md` for endpoint paths, statuses, request/response shapes, and persistence contracts. Do not silently change a shared contract.
-6. Follow `docs/06-frontend-specification.md` for the dashboard flow and graph interactions.
-7. Use TypeScript. Avoid `any` where practical, validate external input, handle errors explicitly, and avoid unnecessary dependencies or abstractions.
-8. Never execute code, package scripts, build steps, or other commands from a cloned/untrusted repository. Inspect source files as data only.
-9. Never expose GitHub tokens, database credentials, or other secrets to the browser or commit them to the repository.
-10. Do not claim that static dependency analysis proves a change will break something. The product reports potential impact, not confirmed runtime failures or bugs.
+1. Inspect existing code and patterns before creating or changing files.
+2. Keep I/O boundaries explicit: backend code should not depend on browser-only structures, and analysis logic should not depend on Express request objects.
+3. Use async job execution for long-running analysis workflows.
+4. Use safe error handling; surface meaningful, user-facing messages without internal secrets.
+5. Do not execute code from untrusted repositories or unreviewed clones without explicit justification.
+6. Prefer deterministic, explainable behavior over hidden heuristics.
+7. Keep comments narrow and only where they clarify non-obvious decisions.
 
-## Before finishing a task
+## Security and privacy
 
-- Check that the implementation matches the relevant acceptance criteria.
-- Run the narrowest relevant tests and type checks available.
+- Never expose GitHub tokens, database credentials, or other secrets to the browser.
+- Keep server-side credentials in environment variables or secret stores.
+- Validate URLs, payloads, and file inputs before processing.
+- Treat repo contents as untrusted input and avoid executing project files or scripts during analysis.
+- Keep user-visible errors free of stack traces, internal paths, and secrets.
+
+## Quality gates before finishing
+
+- Confirm the implementation matches the relevant acceptance criteria.
+- Run the narrowest relevant validation available.
 - Report tests that were not run and why.
-- Update the relevant documentation when a lasting contract, algorithm, schema, or architectural decision changes.
+- Ensure new behavior is covered by tests or explicit validation, where practical.
+- Update documentation when the product contract, algorithm, architecture, or data model changes.
 - Avoid unrelated refactors.
+
+## Completion criteria
+
+A task is complete only when all of the following are true:
+
+- the requested change is implemented,
+- the behavior is validated,
+- relevant docs reflect the current contract,
+- and the result is understandable to the next maintainer.

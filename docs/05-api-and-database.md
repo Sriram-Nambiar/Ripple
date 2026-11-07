@@ -1,39 +1,41 @@
-# 5. API and Database Contract
+# 5. API and database
 
-This document is the shared agreement between the Express backend and React frontend. If an endpoint or response shape changes, update this file and both sides together.
+## Purpose
 
-## 5.1 API conventions
+This document defines the service interfaces, persistence model, and data contracts used by Ripple. It is the shared agreement between backend services and the frontend review experience.
+
+## API conventions
 
 - Base path: `/api/v1`
-- Request/response body format: JSON
-- Analysis creation is asynchronous.
-- User-visible analysis statuses: `queued`, `running`, `completed`, `failed`
-- Keep secrets and GitHub credentials on the server.
-- Use one consistent error envelope.
+- Request and response format: JSON
+- Analysis creation is asynchronous
+- Supported statuses: `queued`, `running`, `completed`, `failed`
+- Secrets and credentials remain server-side only
+- Error responses follow a single envelope schema
 
-## 5.2 Endpoints
+## Endpoints
 
-| Method | Endpoint | Purpose |
+| Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/analyses` | Validate PR URL and enqueue an analysis |
-| `GET` | `/api/v1/analyses/:analysisId` | Retrieve status and summary |
+| `POST` | `/api/v1/analyses` | Validate PR input and enqueue analysis |
+| `GET` | `/api/v1/analyses/:analysisId` | Fetch status, summary, and result metadata |
 | `GET` | `/api/v1/analyses/:analysisId/graph` | Retrieve dependency graph |
-| `GET` | `/api/v1/analyses/:analysisId/affected-files` | Retrieve changed/affected file list |
+| `GET` | `/api/v1/analyses/:analysisId/affected-files` | Retrieve per-file impact list |
 | `GET` | `/api/v1/health` | Basic service health check |
 
-### Create an analysis
+## Request and response contracts
 
-`POST /api/v1/analyses`
+### Create analysis
 
 Request:
 
 ```json
 {
-  "pullRequestUrl": "https://github.com/owner/repo/pull/123"
+  "pullRequestUrl": "https://github.com/owner/repository/pull/123"
 }
 ```
 
-Accepted response (`202 Accepted`):
+Accepted response:
 
 ```json
 {
@@ -45,30 +47,9 @@ Accepted response (`202 Accepted`):
 }
 ```
 
-The server must validate that the URL is an allowed GitHub pull request URL and extract owner, repository, and PR number. Do not accept arbitrary clone URLs or arbitrary hosts from this field.
+Response status: `202 Accepted`
 
-### Get analysis status and summary
-
-`GET /api/v1/analyses/:analysisId`
-
-While processing:
-
-```json
-{
-  "success": true,
-  "data": {
-    "analysisId": "analysis_123",
-    "status": "running",
-    "repository": "owner/repo",
-    "pullRequest": {
-      "number": 123,
-      "title": "Add user service"
-    }
-  }
-}
-```
-
-When completed, include a summary:
+### Analysis status
 
 ```json
 {
@@ -76,33 +57,27 @@ When completed, include a summary:
   "data": {
     "analysisId": "analysis_123",
     "status": "completed",
-    "repository": "owner/repo",
+    "repository": "owner/repository",
     "pullRequest": {
       "number": 123,
       "title": "Add user service",
-      "url": "https://github.com/owner/repo/pull/123",
-      "baseSha": "base-commit-sha",
-      "headSha": "head-commit-sha"
+      "url": "https://github.com/owner/repository/pull/123",
+      "baseSha": "abc123",
+      "headSha": "def456"
     },
     "summary": {
       "riskScore": 67,
       "riskLevel": "High",
       "changedFileCount": 2,
-      "directAffectedCount": 3,
-      "indirectAffectedCount": 5,
+      "directAffectedCount": 4,
+      "indirectAffectedCount": 6,
       "warnings": []
     }
   }
 }
 ```
 
-If failed, return `status: "failed"` and a safe `error` object. Do not return stack traces or secrets.
-
-### Get dependency graph
-
-`GET /api/v1/analyses/:analysisId/graph`
-
-Return a frontend-neutral representation. Do not store React Flow-specific fields as the canonical API contract.
+### Graph response
 
 ```json
 {
@@ -133,27 +108,28 @@ Return a frontend-neutral representation. Do not store React Flow-specific field
 }
 ```
 
-Allowed node statuses: `changed`, `direct_affected`, `indirect_affected`, `unaffected`. The edge direction remains importer-to-imported-file.
+### Affected files response
 
-### Get affected files
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "filePath": "src/controllers/user.controller.ts",
+      "status": "direct_affected",
+      "impactDepth": 1,
+      "reasons": [
+        "Imports src/services/user.service.ts"
+      ],
+      "prStatus": "modified"
+    }
+  ]
+}
+```
 
-`GET /api/v1/analyses/:analysisId/affected-files`
+## Error envelope
 
-Return a list with at least:
-
-- `filePath`
-- `status` (`changed`, `direct_affected`, or `indirect_affected`)
-- `impactDepth` (0 for changed files, 1 for direct dependents, 2+ for indirect dependents)
-- `reasons` (brief explanation, e.g. `Imports src/services/user.service.ts`)
-- PR file status where available (`added`, `modified`, `removed`, `renamed`)
-
-### Health check
-
-`GET /api/v1/health` returns a simple service status. Do not expose credentials, internal configuration, or infrastructure details.
-
-## 5.3 Error response format
-
-Use one shape consistently:
+All error responses should follow this structure:
 
 ```json
 {
@@ -165,85 +141,104 @@ Use one shape consistently:
 }
 ```
 
-Suggested status mapping:
+### Recommended HTTP status mapping
 
-| Situation | HTTP status |
+| Situation | Status |
 |---|---:|
-| Invalid request / URL | 400 |
-| Analysis ID not found | 404 |
-| Analysis accepted | 202 |
-| Rate limit exceeded | 429 |
-| GitHub or upstream service unavailable | 502 or 503 |
-| Unexpected server error | 500 |
+| invalid request | 400 |
+| analysis not found | 404 |
+| accepted for processing | 202 |
+| rate-limited dependency | 429 |
+| upstream service unavailable | 502 or 503 |
+| unexpected server error | 500 |
 
-Keep `code` stable for frontend handling. Messages should be safe to show to users.
+The error code should be stable and machine-readable. User-facing messages must not leak credentials or internal stack traces.
 
-## 5.4 Database entities
-
-The following is a small logical schema. Use the team's chosen SQL migration tooling and naming convention when implementing it.
+## Database model
 
 ### `repositories`
 
 | Field | Purpose |
 |---|---|
-| `id` | Primary key |
-| `owner` | GitHub owner/org |
-| `name` | Repository name |
+| `id` | primary key |
+| `owner` | repo owner or org |
+| `name` | repository name |
 | `full_name` | `owner/name` |
-| `html_url` | Repository URL |
-| `created_at` | Record creation time |
-
-A unique constraint on `full_name` is appropriate for the MVP.
+| `html_url` | repository URL |
+| `created_at` | record creation timestamp |
 
 ### `pull_requests`
 
 | Field | Purpose |
 |---|---|
-| `id` | Primary key |
-| `repository_id` | Foreign key to `repositories` |
+| `id` | primary key |
+| `repository_id` | FK to repositories |
 | `pr_number` | GitHub PR number |
 | `title` | PR title |
 | `html_url` | PR URL |
-| `base_sha` | Base commit SHA |
-| `head_sha` | Head commit SHA |
-| `created_at`, `updated_at` | Record timestamps |
-
-Use a unique constraint on (`repository_id`, `pr_number`).
+| `base_sha` | base commit SHA |
+| `head_sha` | head commit SHA |
+| `created_at` | record creation timestamp |
+| `updated_at` | last update timestamp |
 
 ### `analyses`
 
 | Field | Purpose |
 |---|---|
-| `id` | Public analysis identifier (opaque UUID/string) |
-| `pull_request_id` | Foreign key to `pull_requests` |
+| `id` | public analysis identifier |
+| `pull_request_id` | FK to pull_requests |
 | `status` | `queued`, `running`, `completed`, `failed` |
-| `risk_score` | Nullable integer 0–100 |
-| `risk_level` | Nullable label |
-| `queue_job_id` | Optional pg-boss job identifier |
-| `error_code` | Safe failure code, nullable |
-| `error_message` | Safe user-facing failure message, nullable |
-| `started_at`, `completed_at` | Lifecycle timestamps |
-| `created_at` | Record creation time |
+| `risk_score` | integer 0-100, nullable |
+| `risk_level` | low/medium/high/critical, nullable |
+| `queue_job_id` | optional job reference |
+| `error_code` | safe user-facing error code |
+| `error_message` | safe user-facing error message |
+| `started_at` | analysis start timestamp |
+| `completed_at` | analysis end timestamp |
+| `created_at` | record creation timestamp |
 
 ### `analysis_results`
 
 | Field | Purpose |
 |---|---|
-| `analysis_id` | Primary/foreign key to `analyses` |
-| `graph_data` | JSONB containing graph nodes and edges |
-| `changed_files` | JSONB list from PR metadata, normalized for the UI |
-| `affected_files` | JSONB list with classification, depth, and reasons |
-| `risk_breakdown` | JSONB factor values used to calculate the score |
-| `warnings` | JSONB list of incomplete-analysis/parser warnings |
-| `created_at` | Record creation time |
+| `analysis_id` | FK to analyses |
+| `graph_data` | JSONB of nodes and edges |
+| `changed_files` | JSONB list of changed file metadata |
+| `affected_files` | JSONB list with status, reasons, and depth |
+| `risk_breakdown` | JSONB of factor values |
+| `warnings` | JSONB list of warnings |
+| `created_at` | result creation timestamp |
 
-pg-boss manages its own job tables. Do not recreate its queue schema. The application's `analyses.status` is the status returned to the frontend.
+The queue system may manage its own tables, but the application-level `analyses` record remains the source of truth for UI status.
 
-## 5.5 Persistence and data rules
+## Persistence rules
 
-- Store the exact `head_sha` used for an analysis so results are reproducible and explainable.
-- Store graph/result data as JSONB for the hackathon MVP; do not store the full source repository in PostgreSQL.
-- Keep graph/result object keys consistent with the API examples.
-- Do not store GitHub access tokens in these tables or in pg-boss job payloads.
-- Clean up temporary clones after processing, including on failure.
-- A repeated analysis may create a new analysis record. Caching/deduplication is optional and not required for the MVP.
+- Store the exact head SHA used for the analysis.
+- Keep source repo contents out of PostgreSQL unless specifically relevant to a future feature.
+- Preserve output shape consistency between database, API, and UI.
+- Do not store tokens or credentials in analysis tables or job payloads.
+- Clean temporary checkout directories after completed or failed analysis jobs.
+- Track warnings and incomplete-state metadata as first-class result data.
+
+## Security and privacy requirements
+
+- No GitHub tokens in browser code or front-end state.
+- No secrets in logs or API responses.
+- User-facing messages must be sanitized and stable.
+- Access to analysis records should respect application-level auth boundaries.
+- Sensitive repository data should be treated as confidential and subject to least privilege.
+
+## Operational considerations
+
+- Use retries with backoff for transient external failures.
+- Set timeouts and resource ceilings for repository processing.
+- Log analysis lifecycle events with correlation identifiers.
+- Surface partial or failed processing results clearly.
+
+## Result integrity
+
+Ripple should ensure that result payloads are:
+
+- deterministic for the same PR head snapshot,
+- explainable to reviewers,
+- and treated as advisory rather than absolute proof of breakage.

@@ -1,112 +1,175 @@
-# 6. Frontend Specification
+# 6. Frontend specification
 
 ## Goal
 
-The frontend should make the answer to this question clear within a few seconds:
+The frontend should answer the core product question quickly and clearly:
 
 > Which files changed, which other files may be affected, and why?
 
-Keep the interface focused on the PR analysis. Avoid adding unrelated repository-management features to the hackathon MVP.
+The interface should help reviewers form a decision without making them inspect the entire codebase manually.
 
-## Main user flow
+## User flows
 
-```text
-Landing / PR input
-        |
-        v
-Submit GitHub PR URL
-        |
-        v
-Analysis progress state
-        |
-        v
-Analysis dashboard
-   +----+--------------------+
-   |                         |
-   v                         v
-Risk / PR summary       Dependency heatmap
-                             |
-                             v
-                       Select a file
-                             |
-                             v
-                       File details
-                    + impact explanation
-```
+### Primary flow
 
-## Pages and major components
+1. User opens the app and sees a clear PR submission form.
+2. User pastes a supported GitHub pull request URL.
+3. The system validates input and begins analysis.
+4. The user sees progress while the backend fetches PR metadata and repository data.
+5. When complete, the page shows summary, graph, files, and warnings.
+6. User inspects a file or node and reads the impact rationale.
 
-| Component | Responsibility |
-|---|---|
-| `PRInput` | Accept and submit a GitHub PR URL; show validation errors |
-| `AnalysisProgress` | Show queued/running state and a simple progress message |
-| `PRSummary` | Show repository, PR number/title, and commit information |
-| `RiskSummary` | Show score, risk level, and factor breakdown |
-| `DependencyGraph` | Render the graph and highlight file classifications |
-| `GraphLegend` | Explain changed/affected/unaffected visual states |
-| `FileDetailsPanel` | Show selected path, status, impact depth, and reasons |
-| `AffectedFilesList` | List changed and potentially affected files |
-| `WarningsPanel` | Show parsing gaps, unresolved imports, and incomplete analysis |
+## Core screens
 
-## Dashboard information hierarchy
+### 1. Intake screen
 
-1. **PR header:** repository, PR number, title, and link to GitHub.
-2. **Risk summary:** risk score/label and the factors contributing to it.
-3. **Impact counts:** changed files, direct dependents, and indirect dependents.
-4. **Dependency graph:** primary visualisation.
-5. **File details:** explanation for the selected graph node.
-6. **Warnings:** what the analysis could not resolve or fully inspect.
+Purpose:
+
+- accept a GitHub PR URL
+- validate the value early
+- explain supported input and expected workflow
+
+Required elements:
+
+- input field for PR URL
+- submit button
+- validation message area
+- supporting text describing what analysis will do
+
+### 2. Loading screen
+
+Purpose:
+
+- communicate processing status
+- show that the system is working and not stuck
+
+Required elements:
+
+- queued or running state indicator
+- status text explaining repository retrieval and analysis progress
+- optional retry or cancel action where appropriate
+
+### 3. Results dashboard
+
+Purpose:
+
+- summarize the PR and impact result
+- allow detailed inspection of the graph and affected files
+
+Required sections:
+
+- PR metadata and repository context
+- risk summary with score and factor breakdown
+- graph visualization
+- affected-file list
+- warnings panel
+- file detail panel
+
+## Information hierarchy
+
+1. PR and repository context
+2. Risk summary and factor explanation
+3. Changed-file and affected-file counts
+4. Graph and node selection state
+5. File details and path-by-path rationale
+6. Warnings or partial-analysis notices
 
 ## Graph behavior
 
-React Flow is the default MVP choice. Keep the backend graph schema independent of React Flow so the rendering library can be changed without changing the analysis engine or API.
+Ripple should use a graph UI that supports inspection and explanation, not just visual complexity.
 
-Expected behavior:
+Required behavior:
 
-- Each node represents one source file.
-- Each directed edge goes from the importing file to the imported file.
-- Changed files are visually distinct from affected files.
-- Directly affected and indirectly affected files use different visual states.
-- Unaffected nodes are muted but remain available for context.
-- Selecting a node opens its details in a side panel or equivalent area.
-- The details panel explains the relationship that caused the file to be classified as affected.
-- Provide basic zoom, pan, fit-to-view, and graph controls supported by the chosen library.
+- node = one file
+- edge = importer -> imported file
+- changed files are visually distinguished from affected files
+- direct and indirect impact use distinct visual states
+- unaffected files remain visible but visually neutral
+- selecting a node reveals file path, status, and impact reasons
+- basic zoom, pan, and fit-to-view functionality are provided
 
-Suggested legend:
+Suggested colors:
 
-| Status | Suggested visual treatment |
+| Status | Suggested treatment |
 |---|---|
-| Changed | Red |
-| Directly affected | Orange |
-| Indirectly affected | Yellow |
-| Unaffected | Neutral grey |
+| Changed | red |
+| Directly affected | orange |
+| Indirectly affected | yellow |
+| Unaffected | neutral gray |
 
-Use accessible text labels/icons in addition to color; color must not be the only way to distinguish status.
+Color should never be the only signal. Use labels, icons, and text status as well.
+
+## File detail panel
+
+When a user selects a file, the UI should show:
+
+- normalized file path,
+- file classification,
+- impact depth,
+- reason or reasons for inclusion,
+- related dependency path if available,
+- and warnings associated with that file or analysis.
+
+The detail panel should help the user answer: “Why is this file included in the result?”
 
 ## Loading, empty, and error states
 
-- **Initial:** explain that the user can paste a GitHub PR URL.
-- **Submitting:** disable duplicate submission and show that the request is being validated.
-- **Queued/running:** show analysis status and a message that repository inspection may take time. Poll the status endpoint at a modest interval; stop polling on `completed` or `failed` and clean up polling when the component unmounts.
-- **Completed:** display the dashboard.
-- **Failed:** show a safe error message and allow the user to submit another PR.
-- **No graph nodes:** explain that no supported/resolvable source files were found; do not render a misleading empty heatmap.
-- **Partial analysis:** show warnings clearly and label the result as incomplete.
-- **Large graph:** show a helpful loading/limit message or a filtered view rather than freezing the page.
+### Initial state
+
+- Show a simple prompt and supported example usage.
+
+### Processing state
+
+- Disable duplicate submissions while a job is running.
+- Poll the status endpoint until completion or failure.
+- Show informative progress text.
+
+### Error state
+
+- Show safe, user-friendly messages.
+- Offer retry for recoverable failures.
+- Do not show token, stack trace, or internal implementation details.
+
+### Empty graph state
+
+- Display a clear message when no supported files were found.
+- Explain that the result may be incomplete and show warnings.
+
+### Partial analysis state
+
+- Clearly label the result as partial or incomplete.
+- Show warnings rather than a misleading perfect result.
+
+## Accessibility and quality expectations
+
+- keyboard navigation for major controls,
+- visible focus states,
+- semantic headings and labels,
+- contrast-safe color combinations,
+- and responsive layout support for smaller screens.
 
 ## Frontend/backend contract
 
-Use `docs/05-api-and-database.md` as the source of truth for API paths and data shapes.
+The frontend must use the API schema defined in [05-api-and-database.md](./05-api-and-database.md). It should:
 
-- The frontend submits only the PR URL.
-- The frontend receives an analysis ID and polls the status endpoint.
-- Once complete, it requests graph and affected-file data.
-- The frontend may transform API graph nodes/edges into React Flow objects, but must not change the meaning or direction of edges.
-- The frontend displays the backend's risk score and factor breakdown; it must not independently recalculate the authoritative score.
+- submit only the PR URL,
+- receive an analysis ID and poll for status,
+- request graph and affected-file data once analysis is complete,
+- and render the backend's risk result without recalculating the authoritative score.
 
-## MVP design constraints
+## Design constraints
 
-- Prioritize desktop layout because the graph is the main demo surface; ensure the PR input and summary remain usable on smaller screens.
-- Use Tailwind CSS and shadcn/ui consistently.
-- Reuse components for badges, cards, lists, and panels.
-- Make the risk explanation and affected-file reasons easy to find. A visually impressive graph without an explanation is not sufficient.
+- Prefer readability and clarity over ornamental visuals.
+- Keep the UI focused on review and understanding impact, not repository management or unrelated features.
+- Make the explanations discoverable without requiring a long user journey.
+- Use a consistent design system with reusable cards, panel layouts, and badge states.
+
+## Success criteria for the interface
+
+The frontend is successful when a user can:
+
+- submit a valid PR URL,
+- see progress without ambiguity,
+- inspect the impacted file set,
+- understand why files are classified as affected,
+- and make a confident review decision based on the dashboard information.

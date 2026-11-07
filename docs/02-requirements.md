@@ -1,83 +1,116 @@
-# 2. Requirements and MVP Scope
+# 2. Requirements
 
-## Product workflow
+## Purpose
 
-1. User opens the web application.
-2. User pastes a GitHub PR URL and submits it.
-3. Backend validates the URL and creates an analysis record/job.
-4. Background worker retrieves PR metadata and the repository snapshot.
-5. Analysis engine extracts dependencies, builds the graph, finds affected files, and calculates risk.
-6. Backend stores the result.
-7. Frontend retrieves the result and displays the heatmap.
+This document defines the functional and non-functional requirements for Ripple. It establishes the baseline for implementation quality, acceptance, and ongoing maintenance.
 
-## Functional requirements
+## Product requirements
+
+### Functional requirements
 
 | ID | Requirement | Acceptance criteria |
 |---|---|---|
-| FR-01 | Submit a PR URL | A valid GitHub PR URL is accepted; malformed or unsupported URLs return a clear validation error. |
-| FR-02 | Retrieve PR details | The system records repository owner/name, PR number/title, base SHA, head SHA, and changed-file metadata when available. |
-| FR-03 | Retrieve source | The worker analyses the exact PR head commit, not a moving branch name. |
-| FR-04 | Parse source files | Supported TS/JS files are parsed and local static imports are extracted. Parse failures are captured as warnings rather than silently ignored. |
-| FR-05 | Build dependency graph | Each included source file is represented by a node; a directed edge represents an importer-to-imported-file relationship. |
-| FR-06 | Find affected files | For every changed file found in the graph, the system finds direct and transitive reverse dependents without looping on cycles. |
-| FR-07 | Calculate risk | The system returns a 0–100 heuristic score, risk category, and factor breakdown. If analysis data is insufficient, it reports that limitation rather than presenting a misleading score. |
-| FR-08 | Persist result | The analysis status and result survive an API request ending or page refresh. |
-| FR-09 | Display dashboard | The UI shows PR details, changed files, affected files, risk summary, warnings, and graph. |
-| FR-10 | Explain graph selection | Selecting a node displays its path, status, and why it is included in the impact result. |
+| FR-01 | Accept a GitHub PR URL | The system accepts a valid GitHub pull request URL and rejects malformed or unsupported values with a clear validation message. |
+| FR-02 | Retrieve PR metadata | The backend retrieves repository, PR number, title, and commit references from GitHub when available. |
+| FR-03 | Analyze the PR head snapshot | The system runs analysis against the exact head SHA associated with the pull request. |
+| FR-04 | Extract local file dependencies | Static imports and local references are extracted from supported TypeScript and JavaScript files. |
+| FR-05 | Build a dependency graph | The system constructs a normalized graph of local source-file relationships with a documented edge direction. |
+| FR-06 | Classify changed and affected files | Files reported by GitHub and reverse dependents of changed files are classified as changed, direct affected, indirect affected, or unaffected. |
+| FR-07 | Explain reverse impact | Each affected file includes a reason or path-based explanation that can be shown in the UI. |
+| FR-08 | Calculate risk | The platform returns a numeric risk score, a label, and a factor breakdown for review. |
+| FR-09 | Persist analysis state | Analysis status and result data are stored so they remain accessible after the initial request completes. |
+| FR-10 | Provide a dashboard | The frontend presents PR summary, graph, warnings, risk, and impacted files in a usable review interface. |
+| FR-11 | Handle partial analysis safely | Unsupported files, unresolved imports, or incomplete data produce warnings instead of silently misleading the user. |
 
-## Non-functional requirements for the demo
+### Non-functional requirements
 
-- Analysis must run asynchronously so an HTTP request does not remain open while a repository is processed.
-- The frontend must show queued/running/completed/failed states.
-- Errors must be understandable and must not expose tokens, stack traces, or secrets.
-- Repository processing must have time, size, and file-count limits appropriate to the demo host.
-- The backend must not execute scripts or binaries from a cloned repository.
-- The UI must distinguish changed files from potentially affected files.
+- The system must process analysis asynchronously so the request lifecycle does not block on repo inspection.
+- The frontend must handle queued, running, completed, and failed analysis states.
+- APIs must return stable, documented responses and safe error payloads.
+- Analysis jobs must enforce repository, file, and execution limits to avoid resource exhaustion.
+- The system must keep secrets off the client and out of logs and user-visible error payloads.
+- Results must be explainable to engineers and reviewers without requiring source-code inspection of the entire repo.
+- The platform must degrade gracefully when part of the analysis is incomplete.
 
-## Explicitly out of scope for the 3-day MVP
+## User stories
 
-- GitHub Action or GitHub App installation and automatic PR comments.
-- Private repositories unless the team has time to implement server-side OAuth/App authentication safely.
-- Python, Java, or other language parsers.
-- Runtime call-graph analysis or proof of behavioral impact.
-- Automatic code fixes, PR approvals, or merge blocking.
-- Historical trend analytics, team accounts, billing, and enterprise multi-tenancy.
-- Advanced repository-wide caching and incremental graph recomputation.
+### User story 1
 
-## MVP implementation priorities
+As a reviewer, I want to paste a PR URL and see files likely affected by the change so that I can assess impact before merge.
 
-### Must work for the demo
+Acceptance criteria:
 
-1. Public PR URL validation and metadata retrieval.
-2. Source retrieval at the PR head SHA.
-3. Static TS/JS import extraction and local module resolution.
-4. Correct edge direction and reverse-dependent traversal.
-5. Explainable baseline risk score.
-6. Persisted analysis status/result.
-7. Dashboard graph and affected-file details.
+- Given a valid GitHub PR URL, when the user submits it, then the system creates an analysis record and begins processing.
+- Given a completed analysis, when the user views the result, then they can see changed files and impacted dependents.
 
-### Can be simplified if time is short
+### User story 2
 
-- Advanced graph layout and filtering.
-- Large-repository performance optimisations.
-- Sophisticated scoring weights.
-- Full support for path aliases and unusual monorepo configurations.
-- Detailed historical analysis.
+As a maintainer, I want risk to be explainable, so that I can understand the basis for the score and decide whether to request extra validation.
 
-## Suggested three-person ownership
+Acceptance criteria:
 
-Ownership is a starting point, not a wall. Agree on shared interfaces before parallel implementation.
+- Given an analysis result, when the user opens the risk summary, then they can see the score and factors used to calculate it.
+- Given incomplete analysis conditions, when the result is shown, then warnings are visible and the score is clearly labeled as partial or limited.
 
-| Workstream | Main responsibility | Must agree with |
-|---|---|---|
-| GitHub + backend integration | PR validation, GitHub API, repository retrieval, Express endpoints, job orchestration, persistence | Analysis and API contracts |
-| Analysis engine | ts-morph parsing, import resolution, Graphology graph, blast-radius traversal, risk breakdown | Graph schema and result contract |
-| Frontend | PR form, analysis progress, dashboard, graph visualization, file details | API response and graph schema |
+### User story 3
 
-## Integration checkpoints
+As an engineer onboarding to a codebase, I want the graph to highlight likely dependency paths, so that I can understand the wider effect of a change quickly.
 
-- **Checkpoint 1:** Agree on API request/response types and graph node/edge format before separate frontend/backend work.
-- **Checkpoint 2:** Analysis engine can process a small local fixture repository and return a deterministic result.
-- **Checkpoint 3:** Backend can enqueue a job and expose its status/result.
-- **Checkpoint 4:** Frontend can display a mocked result before live GitHub integration is complete.
-- **Checkpoint 5:** Run one complete public-PR workflow on the deployed demo.
+Acceptance criteria:
+
+- Given a graph result, when a user selects a node, then they can view its file path, status, and reason for inclusion.
+- Given a changed file, when a user follows the graph, then the system shows direct and transitive dependents.
+
+## MVP scope
+
+### Must-have
+
+- GitHub PR URL validation
+- PR metadata retrieval
+- Repository checkout at the exact head SHA
+- Static dependency graph for TS/JS files
+- Reverse traversal for impacted dependents
+- Explainable risk score and warnings
+- Persistent analysis records and UI dashboard
+
+### Should-have
+
+- Better support for path aliases and monorepo layouts
+- More detailed file reason explanations
+- More robust result filtering and graph clustering
+- Clear performance and retry behavior for large repositories
+
+### Not in scope for initial release
+
+- Runtime tracing and execution-based impact analysis
+- GitHub App installation or automatic PR comments
+- Native support for non-TS/JS ecosystems
+- Advanced security and enterprise governance features
+- Historical trend dashboards or team analytics
+
+## Edge cases and risk scenarios
+
+The system must explicitly handle the following situations:
+
+- malformed or unsupported PR URLs,
+- missing or partial GitHub metadata,
+- large repositories that exceed processing limits,
+- deleted or renamed files,
+- circular dependencies,
+- unresolved local imports,
+- unsupported file types,
+- partial data due to parsing or network failures,
+- and unavailable external services.
+
+These states should not produce silent success or misleading results.
+
+## Acceptance checklist
+
+The feature is ready only when:
+
+- the main submission flow works for a valid public PR,
+- impacted files are correctly classified,
+- graph direction and traversal semantics are consistent,
+- warnings appear for incomplete analysis,
+- the risk score has a transparent explanation,
+- and results are user-readable without exposing internal implementation data.

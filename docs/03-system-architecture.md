@@ -1,126 +1,163 @@
-# 3. System Architecture
+# 3. System architecture
 
-## Architecture principle
+## Overview
 
-Keep the **analysis engine independent of Express and React**. The web application is one way to start an analysis and display its result. A future GitHub Action or GitHub App should be able to call the same analysis engine without duplicating parsing, graph, blast-radius, or scoring logic.
+Ripple follows a modular architecture with clear responsibility boundaries between the user interface, API layer, background analysis workflow, and persistence layer. The goal is to keep impact-analysis logic deterministic, testable, and reusable, while still supporting a web-based review experience.
 
-## High-level flow
+At a high level:
 
 ```text
-                         USER
-                           |
-                           v
-                    REACT FRONTEND
-                           |
-                    POST PR URL
-                           |
-                           v
-                     EXPRESS API
-                           |
-             validate URL / create analysis
-                           |
-                           v
-                    POSTGRESQL + pg-boss
-                           |
-                    enqueue analysis job
-                           |
-                           v
-                    BACKGROUND WORKER
-                           |
-               +-----------+-----------+
-               |                       |
-               v                       v
-          GITHUB REST API           GIT CLI
-       PR metadata + changed      checkout exact
-          file information          head SHA
-               |                       |
-               +-----------+-----------+
-                           |
-                           v
-                    ANALYSIS ENGINE
-                           |
-             +-------------+-------------+
-             |             |             |
-             v             v             v
-          ts-morph     Graphology     Risk logic
-        parse/import    graph and      and impact
-         resolution     traversal       summary
-             |             |             |
-             +-------------+-------------+
-                           |
-                           v
-                   STRUCTURED RESULT
-                           |
-                           v
-                     POSTGRESQL
-                           |
-                           v
-                     EXPRESS API
-                           |
-                           v
-                    REACT DASHBOARD
-                    graph + heatmap
+User / Reviewer
+       |
+       v
+React frontend
+       |
+       v
+Express API
+       |
+       v
+PostgreSQL + job queue
+       |
+       v
+Background analysis worker
+       |
+       +--> GitHub API integration
+       +--> Repository checkout / snapshot access
+       +--> Static dependency and impact analysis
+       +--> Persisted result and warnings
+       |
+       v
+Dashboard and summary API
 ```
+
+## Design principles
+
+- Separate business logic from web transport concerns.
+- Keep analysis inputs explicit and typed.
+- Use background workers for expensive PR processing.
+- Keep data contracts frontend-neutral and API-neutral.
+- Surface incomplete analysis honestly through warnings and risk labels.
 
 ## Component responsibilities
 
-| Component | Responsibility | Must not do |
+| Component | Responsibility | Out of scope |
 |---|---|---|
-| React frontend | Collect PR URL, poll analysis status, display summary and graph | Call GitHub with a secret token; clone repositories; calculate its own authoritative risk score |
-| Express API | Validate requests, create/read analyses, return consistent responses | Perform long-running repository analysis inside the request handler |
-| GitHub client | Retrieve PR metadata and changed-file metadata | Send credentials to the browser |
-| Repository fetcher | Retrieve/checkout source at the exact head SHA into a temporary directory | Execute repository scripts or trust repository-provided commands |
-| Analysis engine | Parse files, resolve imports, build graph, find affected files, score impact | Depend on Express request/response objects or React types |
-| pg-boss worker | Run queued analyses and update lifecycle status | Become a second source of truth for application-level status |
-| PostgreSQL | Persist repository/PR/analysis metadata and result JSON | Store secrets or entire repository contents unnecessarily |
+| Frontend | PR submission, polling, graph display, summary, warnings | Accessing secrets or cloning repositories |
+| API layer | Validation, orchestration, status retrieval, error handling | Running heavy analysis in the request handler |
+| Background worker | Fetch snapshot, parse files, compute graph and impact | Direct user interaction |
+| GitHub integration | PR metadata and changed-file retrieval | Browser-side token exposure |
+| Repository fetcher | Checkout and sanitize temporary repo snapshots | Executing project scripts |
+| Analysis engine | Parse dependencies, traverse graph, compute risk | HTTP or React-specific logic |
+| Data layer | Persist job state, analysis result, and metadata | Storing secrets or source-code copies |
 
-## Suggested backend module boundaries
-
-The exact existing folder structure takes precedence. If the backend has not been created yet, use a simple structure such as:
+## Recommended module boundaries
 
 ```text
-backend/src/
-  app.ts
-  server.ts
-  routes/
-  controllers/
-  services/
-  jobs/
-  integrations/
+src/
+  app/
+    api/
+    config/
+    middleware/
+  domain/
+    analysis/
+      parser/
+      graph/
+      blast-radius/
+      scoring/
+      warnings/
     github/
-    git/
-  analysis/
-    parser/
-    graph/
-    blast-radius/
-    scoring/
-  db/
-  middlewares/
-  types/
+    repo/
+  infra/
+    db/
+    jobs/
+    storage/
+  web/
+    client/
+    dashboard/
 ```
 
-Keep `analysis/` callable as ordinary TypeScript functions/services. It should receive explicit inputs such as a repository directory, changed-file metadata, and analysis options, and return a typed analysis result.
+The analysis domain should be callable from code without depending on Express, React, or request lifecycle context. The API layer should pass explicit inputs and results across boundaries.
 
-## Asynchronous job lifecycle
+## Request lifecycle
 
-1. `POST /api/v1/analyses` validates the PR URL.
-2. API creates an application `analyses` record with status `queued`.
-3. API enqueues a pg-boss job containing the analysis ID and validated PR coordinates. Do not put GitHub tokens in job payloads.
-4. Worker changes status to `running`, retrieves PR/source data, and runs analysis.
-5. Worker stores result JSON and changes status to `completed`.
-6. If an expected failure occurs, worker stores a safe error code/message and changes status to `failed`.
-7. Frontend polls `GET /api/v1/analyses/:id` until a terminal status is reached.
+1. User submits a PR URL in the frontend.
+2. API validates the URL and creates an analysis record.
+3. API enqueues an async job for processing.
+4. Worker retrieves PR and repo metadata.
+5. Worker checks out the exact PR head SHA.
+6. Analysis engine builds the dependency graph.
+7. Risk calculation and warnings are produced.
+8. Result is persisted and made available through status endpoints.
+9. Frontend polls for completion and renders the dashboard.
 
-The application's `analyses` table is the source of truth for the UI. pg-boss maintains its own internal job tables; the application record should store the pg-boss job ID only if useful for operations.
+## Job workflow
+
+```text
+POST /api/v1/analyses
+  -> validate input
+  -> create analysis record with status=queued
+  -> enqueue worker job
+
+Worker
+  -> status=running
+  -> fetch PR metadata
+  -> fetch repo snapshot
+  -> parse source files
+  -> build graph
+  -> compute affected files and score
+  -> persist result JSON
+  -> status=completed or failed
+```
+
+The persisted analysis record is the source of truth for UI status. Job queues are operational infrastructure, not the primary product contract.
 
 ## Integration boundaries
 
-- GitHub integration returns normalized PR metadata and changed-file records.
-- Repository retrieval returns a local checkout path plus commit metadata.
-- Analysis engine returns a graph, changed/affected file classifications, warnings, and risk breakdown.
-- Persistence stores the result without requiring the analysis engine to know about HTTP.
-- API returns a frontend-neutral graph schema. The React page converts it to React Flow nodes/edges.
+- GitHub integration returns normalized PR metadata and changed-file info.
+- Repository access yields a temporary local snapshot for static analysis.
+- Analysis engine returns graph data, changed/affected file classifications, warnings, and risk breakdown.
+- Persistence stores the result JSON and job metadata.
+- API layer translates that data into user-facing success or failure responses.
 
-## GitHub Action / GitHub App future path
+## Security architecture
 
-A future webhook/Action integration should call the same analysis service and then post a PR comment with a score, summary, and dashboard URL. It is not part of the MVP and should not block the web workflow.
+- All GitHub access credentials are server-side only.
+- Secrets are never exposed to browser clients or stored in front-end state.
+- Temporary repository checkouts are cleaned up after processing.
+- User-facing responses do not include stack traces, tokens, or internal configuration values.
+- Only validated, sanitized PR URLs and payloads are accepted.
+
+## Observability and operational concerns
+
+Production-grade operation requires:
+
+- structured logs for job lifecycle and errors,
+- metrics for queue depth, success/failure rates, and processing latency,
+- alerting for upstream GitHub or repo-fetch failures,
+- and safe degradation when analysis is partial or limited.
+
+## Failure handling
+
+The system should explicitly handle:
+
+- invalid PR input,
+- rate limiting from GitHub,
+- unavailable repo snapshots,
+- parsing failures or unsupported files,
+- graph construction limits,
+- empty or partial results,
+- and any timeouts or worker-level exceptions.
+
+In all cases, the result should be clear, safe, and user-readable.
+
+## Deployment model
+
+Recommended deployment model:
+
+- frontend hosted independently or behind a single app gateway,
+- backend API and worker deployed as separate services or workers,
+- PostgreSQL for analysis metadata and result persistence,
+- queue system for background processing,
+- environment-specific configuration for secrets and deployment limits.
+
+This separation makes the analysis engine easier to reuse, test, and evolve without tying it to UI concerns.

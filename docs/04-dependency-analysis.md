@@ -1,152 +1,172 @@
-# 4. Dependency Analysis
+# 4. Dependency analysis
 
-This document defines the core logic of Ripple. Keep the graph direction, import-resolution rules, traversal, and result format consistent across all contributors.
+## Purpose
 
-## 4.1 What “dependency” means here
+This document defines how Ripple interprets code relationships, maps change impact, and explains the output to users. The analysis model must be explicit, consistent, and safe to review.
 
-For this project, a dependency is primarily a **relationship between source files/modules**.
+## Definition of dependency
+
+For Ripple, a dependency is primarily a static relationship between local source files. If file A imports or references file B, then A is considered dependent on B.
 
 Example:
 
 ```ts
-// user.controller.ts
 import { getUser } from "../services/user.service";
 ```
 
-`user.controller.ts` depends on `user.service.ts`.
+This implies that the importing file depends on the target file.
 
-This is different from an installed package dependency such as `npm install express`. Package dependency/version analysis is not the main MVP feature.
+The platform does not treat installed package versions as the primary dependency model. Package metadata may be relevant to other product features later, but this system is focused on repository-local code relationships.
 
-## 4.2 Input and output
+## Inputs
 
-**Inputs**
+The analysis engine operates on the following inputs:
 
-- Repository checkout at the PR head commit.
-- Changed-file metadata from the GitHub PR API (path, status, additions/deletions where available).
-- Repository TypeScript configuration where available.
+- repository snapshot at the PR head SHA,
+- GitHub PR metadata and changed-file list,
+- supported TypeScript/JavaScript source files,
+- optional TypeScript config metadata for path resolution,
+- and warnings or limitations discovered during parsing.
 
-**Outputs**
+## Outputs
 
-- Directed file dependency graph.
-- Changed files that could be matched to graph nodes.
-- Directly affected files.
-- Indirectly affected files and their dependency depth.
-- Warnings for unresolved imports, unsupported files, or incomplete analysis.
-- Explainable overall risk score and factor breakdown.
+The analysis returns:
 
-## 4.3 Supported source files and exclusions
+- a normalized dependency graph,
+- changed file classifications,
+- direct and indirect affected files,
+- impact depth per file,
+- risk score and factor breakdown,
+- warnings for incomplete or uncertain results.
 
-MVP-supported extensions:
+## Supported files and exclusions
+
+### Supported file types
 
 - `.ts`
 - `.tsx`
 - `.js`
 - `.jsx`
 
-Exclude generated/vendor/build content such as:
+### Exclusions
+
+The system should skip or ignore generated or vendor directories such as:
 
 - `node_modules/`
 - `dist/`, `build/`, `coverage/`
 - `.git/`
 - `.next/`
-- Other clearly generated or vendored directories agreed by the team
+- generated bundles and vendored code
 
-Do not silently skip a file because parsing fails. Record a warning with the relative file path. Apply a maximum file count and repository size/time limit so one repository cannot exhaust the demo service.
+### Rules for unresolved or unsupported files
 
-## 4.4 Import extraction and resolution
+Unsupported files and failed parse attempts must be reported as warnings, not silently dropped. The system should also apply safe limits for file count, repository size, and processing time to prevent resource exhaustion.
 
-Use `ts-morph` to parse supported files and extract static imports/re-exports that resolve to local repository files.
+## Import extraction and resolution
 
-MVP should attempt to resolve:
+The analysis engine should parse supported source files and extract static module references that can be resolved to local repository files.
 
-- Relative imports (`../services/user.service`).
-- Directory index files where TypeScript module resolution supports them.
-- Common JS/TS file extensions.
-- `tsconfig.json` path aliases when practical and when the relevant config can be loaded safely as configuration data.
+### Resolve these cases
 
-Ignore external package imports such as `express`, `react`, and `multer` for the file-level repository graph.
+- relative imports
+- index-file resolution where supported by TypeScript semantics
+- standard extension-based resolution
+- supported `tsconfig.json` path aliases when safely loadable
 
-If a local-looking import cannot be resolved, record it as an unresolved-import warning. Do not invent an edge to a guessed file.
+### Ignore these cases
 
-Dynamic imports and runtime-generated module paths may not be resolved by the MVP. Document this limitation in the result warnings when detected or when known.
+- external npm package imports
+- runtime-generated module paths that cannot be reliably resolved
+- dynamic imports without static path resolution
 
-## 4.5 Graph model and edge direction
+If a local-looking import cannot be resolved, the system must log it as a warning and must not guess or invent a graph edge.
 
-- **Node:** one source file, identified by a normalized repository-relative path.
-- **Edge:** one file importing another local file.
-- **Direction:** `importer -> imported file`.
+## Graph model
+
+Ripple uses a directed file-level graph.
+
+- Node: one normalized source file path
+- Edge: importer -> imported file
+- Direction: source file imports target file
 
 Example:
 
 ```text
-user.routes.ts  -> user.controller.ts
-user.controller.ts -> user.service.ts
-user.service.ts -> user.model.ts
+src/routes/user.routes.ts -> src/controllers/user.controller.ts
+src/controllers/user.controller.ts -> src/services/user.service.ts
+src/services/user.service.ts -> src/data/user.repository.ts
 ```
 
-A graph node should have at least:
+A minimal node shape:
 
 ```ts
 interface DependencyNode {
-  id: string;                 // normalized relative file path
+  id: string;
   filePath: string;
   language: "typescript" | "javascript";
+  status?: "changed" | "direct_affected" | "indirect_affected" | "unaffected";
 }
 ```
 
-An edge should have at least:
+A minimal edge shape:
 
 ```ts
 interface DependencyEdge {
-  source: string;             // importing file
-  target: string;             // imported file
-  importPath: string;         // original module specifier
+  source: string;
+  target: string;
+  importPath: string;
 }
 ```
 
-If the same file imports the same target more than once, the MVP may consolidate it to one edge. Do not create separate graph nodes for npm packages.
+If the same importer-target pair is encountered multiple times, the graph may consolidate it to a single edge. Package dependencies should never become repository nodes unless a separate feature explicitly requires it.
 
-## 4.6 Blast-radius traversal
+## Blast-radius traversal
 
-Because edges point from importer to dependency, affected dependents are found by traversing **incoming edges** from each changed node.
+Because edges point from importer to dependency, impacted dependents are found by traversing incoming edges from a changed file.
 
 Example:
 
 ```text
-user.routes.ts
-      |
-      v
-user.controller.ts
-      |
-      v
-user.service.ts
-      |
-      v
-user.model.ts  <-- changed
+src/routes/user.routes.ts
+        |
+        v
+src/controllers/user.controller.ts
+        |
+        v
+src/services/user.service.ts
+        |
+        v
+src/data/user.repository.ts  <-- changed
 ```
 
-If `user.model.ts` changes, the potentially affected files are:
+If `src/data/user.repository.ts` is changed, the reverse traversal should reveal:
 
-- Direct dependent: `user.service.ts`
-- Indirect dependent: `user.controller.ts`
-- Indirect dependent: `user.routes.ts`
+- direct affected: `src/services/user.service.ts`
+- indirect affected: `src/controllers/user.controller.ts`
+- indirect affected: `src/routes/user.routes.ts`
 
-Implement a breadth-first or depth-first traversal over incoming edges. Maintain a visited set so circular dependencies cannot cause infinite loops. Record the minimum traversal distance from any changed node as the impact depth.
+Traversal rules:
 
-Classification:
+- use breadth-first or depth-first traversal,
+- maintain a visited set,
+- prevent infinite loops from cycles,
+- record the minimum traversal distance from a changed file,
+- and classify files using depth and relationship semantics.
 
-- `changed`: file reported as changed by the PR.
-- `direct_affected`: one reverse-dependency hop from a changed file.
-- `indirect_affected`: two or more reverse-dependency hops away.
-- `unaffected`: in the graph but not reached by reverse traversal.
+### Classification
 
-If a changed file is not present in the head graph (for example, a deleted file), retain it in the changed-file list and attach a warning. Do not silently drop it or pretend its impact was fully analysed.
+- `changed`: file reported by GitHub in the PR
+- `direct_affected`: one reverse-dependency hop from a changed file
+- `indirect_affected`: two or more reverse-dependency hops from a changed file
+- `unaffected`: in the graph but not reachable from the changed set
 
-## 4.7 MVP risk-scoring heuristic
+If a file is deleted or renamed and cannot be matched to a current graph node, it must be retained as a changed-file record with a warning indicating its impact is incomplete.
 
-The score estimates potential change impact. It does **not** predict bugs, prove breakage, or replace human code review.
+## Risk scoring model
 
-Use this transparent starting formula, then tune it only if the team agrees:
+The risk score is a heuristic impact estimate. It is useful for prioritization and review support, but it is not proof of a bug or production failure.
+
+A transparent baseline score can be derived from the following factors:
 
 ```text
 blastRadiusPoints = min(40, (5 * directAffectedCount) + (2 * indirectAffectedCount))
@@ -159,46 +179,62 @@ riskScore = min(100,
 )
 ```
 
-Criticality is a simple path-based heuristic for the MVP, not semantic understanding:
+### Criticality heuristic
 
-- `0`: no configured sensitive-path match.
-- `10`: a changed path matches a medium-criticality pattern configured by the team (for example, configuration, routing, or database schema/migrations).
-- `20`: a changed path matches a high-criticality pattern (for example, authentication, authorization, permissions, payment, or security modules).
+Criticality is a simple path-based heuristic and is not semantic code understanding:
 
-Use the highest matching criticality among the changed files. Keep the path patterns in one central configuration so they are not duplicated across modules.
+- 0: no sensitive-path match
+- 10: medium-risk area (for example config or schema-related paths)
+- 20: high-risk area (for example auth, security, permissions, or critical API paths)
 
-Risk labels:
+The score should be accompanied by its underlying factor values so users can understand why a result is high or low.
+
+### Risk labels
 
 | Score | Label |
 |---:|---|
-| 0–24 | Low |
-| 25–49 | Medium |
-| 50–74 | High |
-| 75–100 | Critical |
+| 0-24 | Low |
+| 25-49 | Medium |
+| 50-74 | High |
+| 75-100 | Critical |
 
-Return the individual factor values so the UI can explain the score. If parsing failed broadly, the changed files could not be matched, or the graph is clearly incomplete, return an incomplete-analysis warning and avoid presenting the score as trustworthy. A score should never be shown without its limitations and factor breakdown.
+If the analysis is partial, incomplete, or based on a limited graph, the UI must clearly indicate that the score is not fully trustworthy.
 
-## 4.8 Head snapshot and PR file statuses
+## Snapshot and PR semantics
 
-For the MVP, build the graph from the exact PR **head commit** and use the GitHub PR files endpoint for the changed-file list.
+The graph should be generated from the exact PR head snapshot and the GitHub changed-file metadata. This keeps the relationship explicit and explainable.
 
-- Added/modified files can usually be matched to nodes in the head graph.
-- Renamed files may include both `filename` and `previous_filename`; show the rename in the changed-file metadata and analyse the new path in the head snapshot when possible.
-- Deleted files do not exist in the head snapshot. Show them as deleted/changed, but mark their dependency impact as incomplete.
-- Changes to import statements are reflected in the head graph. A full before/after comparison would be a future improvement.
+- Added and modified files are usually matchable to graph nodes.
+- Renamed files should preserve both the old and new paths when available.
+- Deleted files may not exist in the head snapshot; they must be preserved as weak or incomplete analysis cases.
+- Changes to import statements should reflect the current source graph, not claim full before/after semantics.
 
-Do not describe this as complete base-versus-head semantic analysis.
+This is impact analysis, not a complete semantic differencing engine.
 
-## 4.9 Minimum correctness tests
+## Minimum validation checks
 
-Create a tiny fixture repository with a known graph and test:
+A project test suite should include at least the following correctness checks:
 
-1. Relative import creates an edge in the correct direction.
-2. A changed dependency identifies its direct importer.
-3. Reverse traversal identifies transitive importers.
-4. An unrelated file remains unaffected.
-5. A circular dependency terminates and does not duplicate results.
-6. External package imports do not become repository nodes.
-7. An unresolved local import creates a warning.
-8. A deleted changed file is retained in output with an incomplete-analysis warning.
-9. Risk score is deterministic for the same inputs and stays between 0 and 100.
+1. relative imports create edges in the correct direction,
+2. a changed dependency identifies its direct importer,
+3. reverse traversal finds transitive dependents,
+4. unrelated files remain unaffected,
+5. cyclic dependencies terminate safely,
+6. external package imports do not become project nodes,
+7. unresolved local imports generate a warning,
+8. deleted files remain visible with incomplete-analysis metadata,
+9. the risk score stays stable and within the valid range.
+
+## Warning model
+
+Warnings are essential to honest reporting. They should include:
+
+- unresolved imports,
+- unsupported file types,
+- parser failures,
+- missing or partial GitHub metadata,
+- deleted or renamed file limitations,
+- large-repository mode limits,
+- or any partial graph or partial analysis state.
+
+Warnings must be visible to users and must not be hidden as internal-only logs.

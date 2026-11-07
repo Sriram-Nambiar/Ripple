@@ -1,74 +1,100 @@
-# 1. Project Overview
+# 1. Project overview
 
-## What is Ripple?
+## Product summary
 
-Ripple is a web application that analyses a GitHub Pull Request, examines relationships between source files, estimates which files may be affected by the changes, and visualises the result as an interactive dependency heatmap.
+Ripple helps engineering teams understand the likely blast radius of a pull request before it is merged. Given a GitHub pull request URL, the platform inspects code structure, resolves local dependency relationships, identifies files potentially impacted by the change, and displays the result in an explainable dashboard.
 
-The central product question is:
+This is not a runtime bug detector. It is a decision-support tool for reviewers, maintainers, and teams evaluating risk in a changing codebase.
+
+## Problem statement
+
+In large or unfamiliar repositories, a change may appear small in the diff but have broad downstream impact. Reviewers often see a list of changed files, but not the dependent code paths that could break or require additional validation.
+
+Without a clear view of impact, teams may:
+
+- miss related files during review,
+- underestimate cost or risk before merge,
+- over-rely on ad hoc manual inspection,
+- and ship changes with hidden integration risk.
+
+## Product goal
+
+Ripple's core goal is to help a reviewer answer:
 
 > When these files change in a pull request, which other files may be affected, and why?
 
-In this project, **dependency** primarily means a source-code file importing or relying on another source-code file. It does not primarily mean installed npm packages such as Express, Multer, or React.
-
-## Problem
-
-A change to one source file can affect other parts of a repository. Reviewers may not know all the files that depend on the changed code, especially in an unfamiliar or large codebase. A normal changed-files list does not make those relationships easy to see.
-
-## Proposed solution
-
-A user pastes a GitHub PR URL. The backend retrieves PR information, inspects the repository at the PR head commit, extracts local TypeScript/JavaScript imports, builds a dependency graph, finds reverse dependents of changed files, calculates an indicative risk score, and returns data for the dashboard heatmap.
-
 ## Target users
 
-- Developers reviewing pull requests.
-- Tech leads assessing the scope of a change.
-- Developers onboarding to an unfamiliar repository.
+- Developers reviewing pull requests
+- Tech leads assessing change scope
+- Engineers onboarding to unfamiliar repositories
+- Maintainers prioritizing validation effort before merge
 
-## MVP features
+## Core user journeys
 
-1. Submit a GitHub PR URL.
-2. Retrieve PR metadata and changed-file information.
-3. Clone or otherwise retrieve the repository at the PR head commit.
-4. Parse supported source files with `ts-morph`.
-5. Build a directed dependency graph with Graphology.
-6. Find direct and transitive dependents of changed files.
-7. Calculate and explain an indicative risk score.
-8. Display changed and potentially affected files in an interactive graph/heatmap.
+1. A user pastes a GitHub pull request URL.
+2. The backend retrieves PR metadata and changed-file information.
+3. The analysis engine builds a dependency graph for the head snapshot.
+4. The system identifies direct and transitive dependents of changed files.
+5. The user reviews risk, file classification, and impact rationale.
+6. The team decides whether to proceed, request changes, or add validation.
 
-## Technology stack
+## High-level capabilities
 
-| Layer | Technology | MVP responsibility |
-|---|---|---|
-| Frontend | React + TypeScript | PR submission and analysis dashboard |
-| Styling | Tailwind CSS + shadcn/ui | UI components and layout |
-| Graph UI | React Flow (default choice) | Interactive graph and file selection |
-| Backend | Node.js + Express + TypeScript | HTTP API and orchestration |
-| GitHub | GitHub REST API | PR metadata and changed-file list |
-| Repository access | Git CLI | Retrieve source at the selected commit |
-| Static analysis | ts-morph | Parse TS/JS and resolve local imports |
-| Graph processing | Graphology | Store and traverse file dependency graph |
-| Database | PostgreSQL + JSONB | Store analyses and graph/result data |
-| Background jobs | pg-boss | Run analysis outside the request/response cycle |
-| Deployment | Render | Host frontend, backend/worker, and PostgreSQL as configured |
+- GitHub PR URL validation and normalization
+- Repository snapshot retrieval at the PR head SHA
+- Static import extraction and dependency graph construction
+- Reverse traversal to identify likely affected files
+- Risk scoring with transparent factor breakdown
+- Dashboard with summary, graph, warnings, and file details
 
-## MVP boundaries and known limitations
+## Scope
 
-- Initial language support is TypeScript and JavaScript (`.ts`, `.tsx`, `.js`, `.jsx`).
-- The MVP analyses static, resolvable imports. It does not execute code or trace runtime behavior.
-- Dynamic imports, reflection, dependency injection, and runtime-loaded modules may not be fully captured.
-- npm package dependency/version analysis is not the primary feature.
-- The initial demo targets public GitHub repositories. Private repository support requires carefully configured server-side credentials and permissions.
-- The initial graph is based on the PR head snapshot. Deleted files and some rename cases cannot be analysed as fully as a base-versus-head comparison.
-- Risk is an explainable heuristic. It is not proof that a change will cause a bug.
-- GitHub Action/GitHub App automation and automatic PR comments are future integration paths, not required for the web demo.
+### In scope
 
-## Demo success criteria
+- Public GitHub pull request analysis
+- TypeScript and JavaScript source support
+- Directed dependency graph of local source relationships
+- Changed-file and affected-file classification
+- Explainable risk scoring and warnings
+- Web dashboard for PR review and impact assessment
 
-A judge should be able to paste a supported public GitHub PR URL, start an analysis, see progress, and view:
+### Out of scope
 
-- PR title and repository details.
-- Changed files.
-- Directly and indirectly affected files.
-- A visible explanation of why a file is marked as affected.
-- Overall risk level and score breakdown.
-- An interactive dependency graph with a clear legend.
+- Runtime tracing or execution of repository code
+- Full semantic analysis of business logic or runtime behavior
+- Native support for every language or framework
+- Auto-approval, auto-merge, or code remediation flows
+- Enterprise-grade multi-tenancy, billing, or org-level governance for the initial design
+
+## Constraints and assumptions
+
+- The MVP prioritizes public repositories and static code analysis.
+- Local imports are resolved statically; runtime-generated module usage is not fully captured.
+- Graph construction is based on the PR head snapshot, not a full before/after semantic diff.
+- Risk is a heuristic estimate and should be presented as an aid to review, not proof of failure.
+- Security-sensitive or secret-bearing infrastructure must remain server-side and must never be exposed to the browser.
+
+## Production-readiness mindset
+
+Ripple should be designed with production reliability in mind:
+
+- safe and validated inputs,
+- asynchronous analysis pipelines,
+- explainable result data,
+- explicit warning paths for partial analysis,
+- and clear operational boundaries between UI, backend, worker, and persistence layers.
+
+## Success metrics
+
+The product is successful when:
+
+- users can submit a supported PR URL and receive meaningful impact analysis,
+- direct and transitive affected files are clearly identified,
+- the scoring and impact reasoning are understandable,
+- warnings surface uncertainty instead of masking it,
+- and the workflow can be run reliably in a production environment.
+
+## Product boundaries
+
+Ripple does not claim to prove that a change will definitely break production behavior. Its purpose is to make impact more visible and reviewable so engineering teams can make better-informed decisions faster.

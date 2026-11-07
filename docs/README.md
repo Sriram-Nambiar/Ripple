@@ -1,45 +1,56 @@
-# Ripple Documentation
+# Ripple documentation
 
-This folder contains the product and engineering decisions needed to build the hackathon MVP. It is intentionally small. Treat these documents as the team's shared working agreement, not as paperwork that must be expanded for its own sake.
+This folder defines the product contract, architecture, technical standards, and delivery expectations for Ripple. The documents are intended to be used as the shared source of truth for implementation, review, and operational decision-making.
 
 ## Document index
 
-| File | Read when working on... |
+| File | Purpose |
 |---|---|
-| [01-project-overview.md](./01-project-overview.md) | Any task; understanding the product and its boundaries |
-| [02-requirements.md](./02-requirements.md) | MVP scope, feature acceptance criteria, task planning |
-| [03-system-architecture.md](./03-system-architecture.md) | Backend/frontend boundaries, worker flow, integrations |
-| [04-dependency-analysis.md](./04-dependency-analysis.md) | Parsing, module resolution, graph construction, blast radius, scoring |
-| [05-api-and-database.md](./05-api-and-database.md) | API implementation, frontend/backend integration, persistence |
-| [06-frontend-specification.md](./06-frontend-specification.md) | React pages, dashboard, graph visualization, UI states |
+| [01-project-overview.md](./01-project-overview.md) | Product vision, market problem, key users, and scope |
+| [02-requirements.md](./02-requirements.md) | Functional and non-functional requirements, user stories, and acceptance criteria |
+| [03-system-architecture.md](./03-system-architecture.md) | System boundaries, components, and deployment/ops model |
+| [04-dependency-analysis.md](./04-dependency-analysis.md) | Graph semantics, dependency resolution, traversal, and risk scoring |
+| [05-api-and-database.md](./05-api-and-database.md) | API contracts, persistence model, validation, and data lifecycle |
+| [06-frontend-specification.md](./06-frontend-specification.md) | User flows, UI states, dashboard expectations, and UX rules |
 
-The root-level [`AGENTS.md`](../AGENTS.md) contains concise instructions for coding agents.
+The root-level [AGENTS.md](../AGENTS.md) defines the coding and review standards for agents and contributors.
 
-## Suggested context by task
+## How to use these documents
 
-- **GitHub PR retrieval / repository cloning:** `AGENTS.md`, `01`, `02`, `03`, `05`
-- **ts-morph parsing / Graphology / blast-radius logic:** `AGENTS.md`, `01`, `03`, `04`, `05`
-- **Risk scoring:** `AGENTS.md`, `02`, `04`, `05`
-- **Express endpoints / PostgreSQL / pg-boss:** `AGENTS.md`, `03`, `05`
-- **React dashboard / graph UI:** `AGENTS.md`, `01`, `02`, `05`, `06`
-- **End-to-end integration:** `AGENTS.md`, `02`, `03`, `04`, `05`, `06`
+1. Start with the overview and requirements before making design changes.
+2. Use architecture and API docs to align frontend, backend, and data work.
+3. Use dependency analysis to keep the impact model consistent and explainable.
+4. Treat frontend docs as a contract for UX and interaction quality.
+5. Update documentation when product scope, architectural assumptions, or contracts change.
 
-Agents should also inspect the relevant source code and tests. Documentation describes the intended contract; the repository shows the current implementation.
+## Production-grade expectations
 
-## Current MVP assumptions
+These docs are written to support a production-ready engineering workflow, not just a demo. In particular, they assume:
 
-These are deliberate defaults so the team can start implementation. Change them only after agreeing as a team, then update the affected document(s).
+- explicit product requirements and measurable acceptance criteria,
+- documented system boundaries and ownership,
+- safe API and persistence contracts,
+- explainable impact analysis and score breakdown,
+- security and privacy guardrails,
+- operational readiness across staging and production environments.
 
-1. The demo accepts a GitHub Pull Request URL through a web app.
-2. The first version supports public GitHub repositories and TypeScript/JavaScript source files.
-3. GitHub API access and repository cloning happen on the backend. Credentials never reach the browser.
-4. The worker analyses the PR head commit. The MVP uses changed-file metadata from GitHub and the head snapshot for the dependency graph. Deleted/renamed-file analysis has limitations described in `04-dependency-analysis.md`.
-5. `ts-morph` extracts statically resolvable local imports; Graphology stores a directed file-level graph.
-6. An edge `A -> B` means **file A imports file B**. To find files potentially affected by a change to B, traverse incoming edges from B.
-7. The risk score is an explainable demo heuristic, not a calibrated prediction of bugs.
-8. `pg-boss` runs analysis asynchronously using PostgreSQL. The application's `analyses` record is the source of truth for user-visible status.
-9. React Flow is the default graph UI for the MVP. Keep the API graph data independent of React Flow-specific node/edge objects.
+## Document ownership
 
-## Updating these docs
+This project should be treated as a shared engineering artifact:
 
-Update a document when a shared product requirement, algorithm, API contract, data shape, or architectural boundary changes. Do not update documentation for every small implementation detail. Keep examples consistent across documents.
+- product and scope decisions live in the overview and requirements docs,
+- architecture and API docs define technical boundaries,
+- analysis docs define the meaning of impact and risk,
+- frontend docs define the UX contract and user-facing trust signals.
+
+## Review process
+
+Before merging changes that affect a shared contract, the following should be reviewed together:
+
+- requirement impact,
+- architectural impact,
+- data/API compatibility,
+- user-facing behavior,
+- security and operational risk.
+
+The docs should be concise but explicit. Avoid vague or aspirational language when a requirement can be written in a testable form.
