@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+  import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import {
   ExtractedExport,
@@ -106,7 +106,7 @@ export async function parseSourceFile(
   }
 
   // Supplement / fallback using regex to ensure no static imports are missed
-  const fallbackResults = extractWithRegexFallback(content);
+  const fallbackResults = (parseErrors.length > 0 || imports.length === 0) ? extractWithRegexFallback(content) : { imports: [], exports: [] };
 
   // Merge imports without duplicates
   for (const fallbackImp of fallbackResults.imports) {
@@ -290,8 +290,20 @@ function collectExportNames(node: any, exports: ExtractedExport[]): void {
     return;
   }
 
-  const decl = node.childForFieldName('declaration') || findChildByType(node, 'declaration');
+  const decl = node.childForFieldName('declaration') || findChildByType(node, 'declaration') || node.namedChild(0);
   if (decl) {
+    if (decl.type === 'lexical_declaration' || decl.type === 'variable_declaration') {
+      for (let i = 0; i < decl.namedChildCount; i++) {
+        const declarator = decl.namedChild(i);
+        if (declarator.type === 'variable_declarator') {
+          const id = declarator.childForFieldName('name') || findChildByType(declarator, 'identifier');
+          if (id) {
+            exports.push({ name: id.text, line });
+          }
+        }
+      }
+      return;
+    }
     const id = decl.childForFieldName('name') || findChildByType(decl, 'identifier');
     if (id) {
       exports.push({ name: id.text, line });
@@ -312,10 +324,11 @@ function collectExportNames(node: any, exports: ExtractedExport[]): void {
 /**
  * Fallback regex extractor to ensure resilient static extraction.
  */
-function extractWithRegexFallback(content: string): {
+function extractWithRegexFallback(rawContent: string): {
   imports: ExtractedImport[];
   exports: ExtractedExport[];
 } {
+  const content = rawContent.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, "");
   const imports: ExtractedImport[] = [];
   const exports: ExtractedExport[] = [];
 

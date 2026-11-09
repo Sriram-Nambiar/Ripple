@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import { analyzeRepository } from './domain/analysis/analyzer.js';
 import { AnalysisResult, RepositoryFileInput, ChangedFileInput } from './domain/analysis/types.js';
+import { fetchGitHubPullRequest, parseGitHubPrUrl } from './domain/github/github-fetcher.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -235,20 +236,8 @@ app.get('/api/v1/samples', (_req: Request, res: Response) => {
 });
 
 /**
- * Parses GitHub PR URL into owner, repo, and PR number
- */
-function parseGitHubPrUrl(url: string): { owner: string; repo: string; number: number } | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/i);
-  if (!match || !match[1] || !match[2] || !match[3]) return null;
-  return {
-    owner: match[1],
-    repo: match[2],
-    number: parseInt(match[3], 10),
-  };
-}
-
-/**
- * Direct synchronous analysis endpoint
+ * Direct synchronous analysis endpoint supporting both preset scenarios
+ * and LIVE real GitHub pull requests via GitHub API
  */
 app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> => {
   const startTime = Date.now();
@@ -260,19 +249,21 @@ app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> =
     let prTitle = 'PR Impact Analysis';
     let prMeta = { number: 1, title: prTitle, url: pullRequestUrl || 'https://github.com/owner/repo/pull/1' };
 
-    // 1. Check if user selected or matched a preset sample
+    // 1. Preset sample requested
     if (sampleKey && PRESET_SAMPLES[sampleKey]) {
       const sample = PRESET_SAMPLES[sampleKey];
       repoFiles = sample.repositoryFiles;
       prChanges = sample.changedFiles;
       prTitle = sample.title;
       prMeta = { number: 1, title: prTitle, url: sample.prUrl };
-    } else if (pullRequestUrl && typeof pullRequestUrl === 'string') {
-      const parsedUrl = parseGitHubPrUrl(pullRequestUrl);
+    }
+    // 2. Real GitHub Pull Request URL or string input
+    else if (pullRequestUrl && typeof pullRequestUrl === 'string') {
+      const trimmedUrl = pullRequestUrl.trim();
 
       // Check if URL matches a preset
       const matchedPreset = Object.values(PRESET_SAMPLES).find(
-        (s) => s.prUrl.toLowerCase() === pullRequestUrl.toLowerCase()
+        (s) => s.prUrl.toLowerCase() === trimmedUrl.toLowerCase()
       );
 
       if (matchedPreset) {
@@ -280,71 +271,45 @@ app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> =
         prChanges = matchedPreset.changedFiles;
         prTitle = matchedPreset.title;
         prMeta = { number: 1, title: prTitle, url: matchedPreset.prUrl };
-      } else if (parsedUrl) {
-        prTitle = `PR #${parsedUrl.number} on ${parsedUrl.owner}/${parsedUrl.repo}`;
-        prMeta = {
-          number: parsedUrl.number,
-          title: prTitle,
-          url: pullRequestUrl,
-        };
-
-        // Attempt to fetch changed files from GitHub public API
-        try {
-          const ghApiUrl = `https://api.github.com/repos/${parsedUrl.owner}/${parsedUrl.repo}/pulls/${parsedUrl.number}/files`;
-          const ghRes = await fetch(ghApiUrl, {
-            headers: {
-              'User-Agent': 'Ripple-Analysis-Engine/1.0',
-              Accept: 'application/vnd.github.v3+json',
+      } else {
+        const parsed = parseGitHubPrUrl(trimmedUrl);
+        if (!parsed) {
+          res.status(400).json({
+            success: false,
+            error: {
+              code: 'INVALID_PR_URL',
+              message: 'Invalid GitHub pull request URL. Please provide a valid URL like: https://github.com/owner/repo/pull/123',
             },
           });
-
-          if (ghRes.ok) {
-            const files = (await ghRes.json()) as any[];
-            prChanges = files.map((f) => ({
-              path: f.filename,
-              additions: f.additions,
-              deletions: f.deletions,
-              status: f.status,
-            }));
-
-            // Fetch contents for files
-            for (const f of files.slice(0, 15)) {
-              if (f.raw_url) {
-                const rawRes = await fetch(f.raw_url);
-                if (rawRes.ok) {
-                  const content = await rawRes.text();
-                  repoFiles.push({ path: f.filename, content });
-                }
-              }
-            }
-          }
-        } catch {
-          // Fallback to sample if GitHub API is unreachable or rate limited
+          return;
         }
 
-        // If repoFiles empty after GitHub fetch (e.g. rate limit), use default demo repo
-        if (repoFiles.length === 0) {
-          const fallback = PRESET_SAMPLES['auth-core']!;
-          repoFiles = fallback.repositoryFiles;
-          prChanges = prChanges.length > 0 ? prChanges : fallback.changedFiles;
-        }
-      } else {
-        // Fallback to auth-core demo
-        const fallback = PRESET_SAMPLES['auth-core']!;
-        repoFiles = fallback.repositoryFiles;
-        prChanges = fallback.changedFiles;
-        prTitle = fallback.title;
+        // Fetch real GitHub pull request and repository source files
+        const fetched = await fetchGitHubPullRequest(parsed);
+        repoFiles = fetched.repositoryFiles;
+        prChanges = fetched.changedFiles;
+        prTitle = fetched.pullRequest.title;
+        prMeta = {
+          number: fetched.pullRequest.number,
+          title: prTitle,
+          url: fetched.pullRequest.url,
+        };
       }
-    } else if (Array.isArray(repositoryFiles) && Array.isArray(changedFiles)) {
+    }
+    // 3. Raw payload with repositoryFiles and changedFiles
+    else if (Array.isArray(repositoryFiles) && Array.isArray(changedFiles)) {
       repoFiles = repositoryFiles;
       prChanges = changedFiles;
-    } else {
+    }
+    // 4. Default fallback
+    else {
       const fallback = PRESET_SAMPLES['auth-core']!;
       repoFiles = fallback.repositoryFiles;
       prChanges = fallback.changedFiles;
       prTitle = fallback.title;
     }
 
+    // Run core static AST analysis engine
     const result = await analyzeRepository({
       repositoryFiles: repoFiles,
       changedFiles: prChanges,
@@ -376,7 +341,8 @@ app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> =
       },
     });
   } catch (err: any) {
-    res.status(500).json({
+    console.error('Analysis error:', err);
+    res.status(err.status || 500).json({
       success: false,
       error: {
         code: 'ANALYSIS_FAILED',
@@ -402,7 +368,6 @@ app.post('/api/v1/analyses', async (req: Request, res: Response) => {
     return;
   }
 
-  // Forward to synchronous handler for simplicity
   const analysisId = 'analysis_' + Math.random().toString(36).substring(2, 9);
   res.status(202).json({
     success: true,
