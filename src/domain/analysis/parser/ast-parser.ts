@@ -89,7 +89,8 @@ export async function parseSourceFile(
       const tree = parser.parse(content);
       const rootNode = tree.rootNode;
 
-      if (rootNode.hasError()) {
+      const hasErr = typeof rootNode.hasError === 'function' ? rootNode.hasError() : Boolean(rootNode.hasError);
+      if (hasErr) {
         parseErrors.push(`Syntax error or incomplete syntax detected in ${normalizedPath}`);
       }
 
