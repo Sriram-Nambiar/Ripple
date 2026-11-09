@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import { analyzeRepository } from './domain/analysis/analyzer.js';
 import { AnalysisResult, RepositoryFileInput, ChangedFileInput } from './domain/analysis/types.js';
 import { fetchGitHubPullRequest, parseGitHubPrUrl } from './domain/github/github-fetcher.js';
@@ -452,6 +454,18 @@ app.get('/api/v1/analyses/:analysisId/affected-files', (req: Request, res: Respo
     data: item.result.files.filter((f) => f.type === 'affected'),
   });
 });
+
+// Serve compiled React frontend in production
+const frontendDistPath = path.resolve(process.cwd(), 'frontend', 'dist');
+if (fs.existsSync(frontendDistPath)) {
+  app.use(express.static(frontendDistPath));
+  app.get('*', (req: Request, res: Response, next) => {
+    if (req.path.startsWith('/api/')) {
+      return next();
+    }
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`Ripple Core Analysis API running on http://localhost:${PORT}`);

@@ -97,26 +97,30 @@ function generatePrCommentBody(
 ): string {
   const { summary, riskScore, riskLevel, files, dependencies, reasons, warnings, executionTimeMs } = analysis;
 
+  const webBaseUrl = (
+    process.env.RIPPLE_WEB_URL ||
+    process.env.RENDER_EXTERNAL_URL ||
+    'https://ripple-pr-radar.onrender.com'
+  ).replace(/\/$/, '');
+  const dashboardUrl = `${webBaseUrl}/?pr=${encodeURIComponent(prMeta.url)}`;
+
   const levelEmoji =
     riskLevel === 'CRITICAL' ? '🚨' : riskLevel === 'HIGH' ? '🔴' : riskLevel === 'MEDIUM' ? '🟠' : '🟢';
 
-  const riskBadgeColor =
-    riskLevel === 'CRITICAL' ? 'red' : riskLevel === 'HIGH' ? 'red' : riskLevel === 'MEDIUM' ? 'yellow' : 'brightgreen';
-
   const verdictText =
     riskScore >= 70
-      ? '⚠️ **High Architectural Risk:** Core systems or wide downstream dependents are modified. Multi-reviewer sign-off and downstream regression testing strongly recommended.'
+      ? '⚠️ **High Architectural Risk:** Core systems modified. Multi-reviewer sign-off recommended.'
       : riskScore >= 40
-      ? '⚡ **Moderate Risk:** Changes propagate to multiple dependent files. Verify interface contracts and dependent workflows.'
-      : '✅ **Low Architectural Risk:** Changes are isolated with minimal or zero downstream dependency blast radius.';
+      ? '⚡ **Moderate Risk:** Changes propagate to multiple dependent files. Verify interface contracts.'
+      : '✅ **Low Architectural Risk:** Changes are isolated with minimal or zero downstream blast radius.';
 
-  // Build Mermaid graph (up to 15 edges to keep it clean)
+  // Build Mermaid graph (up to 12 edges)
   let mermaidBlock = '';
   if (dependencies && dependencies.length > 0) {
     const lines: string[] = ['```mermaid', 'graph LR'];
     const activeNodes = new Set<string>();
 
-    dependencies.slice(0, 15).forEach((edge: any) => {
+    dependencies.slice(0, 12).forEach((edge: any) => {
       const srcId = edge.source.replace(/[^a-zA-Z0-9_]/g, '_');
       const tgtId = edge.target.replace(/[^a-zA-Z0-9_]/g, '_');
       const srcName = edge.source.split('/').pop() || edge.source;
@@ -127,7 +131,6 @@ function generatePrCommentBody(
       activeNodes.add(edge.target);
     });
 
-    // Style nodes
     files.forEach((f: any) => {
       if (activeNodes.has(f.path)) {
         const id = f.path.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -148,79 +151,71 @@ function generatePrCommentBody(
   // Build Impacted Files table
   const affectedList = files.filter((f: any) => f.status !== 'unaffected');
   const filesTableRows = affectedList
-    .slice(0, 20)
+    .slice(0, 15)
     .map((f: any) => {
       const statusIcon =
         f.status === 'changed'
           ? '🔴 `changed`'
           : f.status === 'direct_affected'
-          ? '🟠 `direct_affected`'
-          : '🔵 `indirect_affected`';
+          ? '🟠 `direct`'
+          : '🔵 `indirect`';
       const reasonStr = f.reasons && f.reasons.length > 0 ? f.reasons[0] : '--';
       return `| \`${f.path}\` | ${statusIcon} | **${f.riskScore}** | ${f.impactDepth} | ${reasonStr} |`;
     })
     .join('\n');
 
-  // Breakdown items
   const bd = summary.breakdown;
 
   return `<!-- ripple-pr-impact-radar -->
 ## 🌊 Ripple · Pull Request Impact Radar
 
-> **Pre-Merge Blast-Radius & Architectural Risk Assessment**
-> Analysis performed by **Ripple Core Analysis Engine (AST & Reverse BFS)**
+> 🚀 **[View Full 3D Interactive Blast-Radius Report on Ripple Web Dashboard →](${dashboardUrl})**
 
-### 🚦 Evaluation: ${levelEmoji} **${riskLevel} RISK (${riskScore} / 100)**
-
+### 🚦 Evaluation: ${levelEmoji} **${riskLevel} RISK (${riskScore}/100)**
 ${verdictText}
 
-| 🎯 Changed Files | 💥 Blast Radius | ⤹ Propagation Depth | ⚡ Analysis Speed |
+| 🎯 Changed Files | 💥 Blast Radius | ⤹ Max Depth | ⚡ Speed |
 | :---: | :---: | :---: | :---: |
-| **${summary.changedFileCount} files** | **${summary.totalAffectedCount} files affected** (${summary.directAffectedCount} direct, ${summary.indirectAffectedCount} indirect) | **${summary.maxImpactDepth} hops** | **${executionTimeMs || '< 20'} ms** |
+| **${summary.changedFileCount}** | **${summary.totalAffectedCount} downstream** (${summary.directAffectedCount} direct, ${summary.indirectAffectedCount} indirect) | **${summary.maxImpactDepth} hops** | **${executionTimeMs || '< 20'} ms** |
 
----
+${reasons.slice(0, 3).map((r: string) => `- ▹ ${r}`).join('\n')}
 
-### 📊 Heuristic Risk Factor Breakdown
-
-| Dimension | Points | Weight | Impact Rationale |
-| :--- | :---: | :---: | :--- |
-| **Blast Radius** | \`${bd.blastRadiusPoints} / 35\` | 35% | ${summary.totalAffectedCount} downstream files affected in dependency graph |
-| **Propagation Depth** | \`${bd.depthPoints} / 20\` | 20% | Maximum reverse dependency cascade reaches depth of ${summary.maxImpactDepth} |
-| **Module Criticality** | \`${bd.criticalityPoints} / 20\` | 20% | Criticality of modified paths (Auth/Payment/Security/Core) |
-| **Change Volume** | \`${bd.changeSizePoints} / 15\` | 15% | Code churn and volume of modified declarations |
-| **Test Coverage Verification** | \`${bd.testCoveragePoints} / 10\` | 10% | Presence of matching test suites for touched paths |
-
----
-
-${
-  affectedList.length > 0
-    ? `### 💥 Impacted Files Breakdown (${affectedList.length} files)
+<details>
+<summary><b>💥 View Impacted Files Breakdown (${affectedList.length} files)</b></summary>
 
 | File Path | Status | Risk Score | Depth | Primary Impact Reason |
 | :--- | :---: | :---: | :---: | :--- |
 ${filesTableRows}
-${affectedList.length > 20 ? `\n*...and ${affectedList.length - 20} more files.*` : ''}
+${affectedList.length > 15 ? `\n*...and ${affectedList.length - 15} more files. [See all in Dashboard](${dashboardUrl})*` : ''}
 
----`
-    : ''
-}
+</details>
+
+<details>
+<summary><b>📊 View Risk Scoring Breakdown</b></summary>
+
+| Factor | Points | Weight | Assessment |
+| :--- | :---: | :---: | :--- |
+| **Blast Radius** | \`${bd.blastRadiusPoints} / 35\` | 35% | ${summary.totalAffectedCount} downstream files affected |
+| **Propagation Depth** | \`${bd.depthPoints} / 20\` | 20% | Maximum cascade reaches ${summary.maxImpactDepth} levels |
+| **Module Criticality** | \`${bd.criticalityPoints} / 20\` | 20% | Criticality of touched code paths |
+| **Change Volume** | \`${bd.changeSizePoints} / 15\` | 15% | Lines modified across pull request |
+| **Test Verification** | \`${bd.testCoveragePoints} / 10\` | 10% | Presence of matching test coverage |
+
+</details>
 
 ${
   mermaidBlock
-    ? `### 🔗 Dependency Blast-Radius Graph
+    ? `<details>
+<summary><b>🔗 View Dependency Graph Diagram</b></summary>
 
 ${mermaidBlock}
 
----`
+</details>`
     : ''
 }
 
-### 💡 Key Architectural Observations & Guidance
-${reasons.map((r: string) => `- ▹ ${r}`).join('\n')}
-${warnings && warnings.length > 0 ? `\n**Parser Warnings:**\n${warnings.map((w: string) => `- ⚠️ ${w}`).join('\n')}` : ''}
-
 ---
-<sub>⚡ Reported by **[Ripple PR Weather Radar](https://github.com/${prMeta.owner}/${prMeta.repo})** · Zero runtime code execution · AST Static Parsing</sub>
+<sub>⚡ [Open full 3D interactive model & code inspector in Ripple Dashboard](${dashboardUrl})</sub>
 `;
 }
 

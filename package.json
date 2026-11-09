@@ -10,7 +10,9 @@
     "start": "tsx src/server.ts",
     "server": "tsx src/server.ts",
     "bot": "tsx scripts/pr-bot.ts",
-    "build": "tsc",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build && tsc",
+    "render:build": "npm --prefix frontend install && npm --prefix frontend run build && tsc",
+    "build:all": "npm --prefix frontend install && npm --prefix frontend run build && tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -31,6 +33,7 @@
     "express": "^4.21.2",
     "graphology": "^0.26.0",
     "tree-sitter-wasms": "^0.1.13",
+    "tsx": "^4.19.2",
     "web-tree-sitter": "0.22.6"
   },
   "devDependencies": {
@@ -38,7 +41,6 @@
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.1",
     "graphology-types": "^0.24.8",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
   }

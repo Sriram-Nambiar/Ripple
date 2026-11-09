@@ -116,6 +116,20 @@ function App() {
   };
 
   useEffect(() => {
+    // Check if PR URL is specified in query string (?pr=...)
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const prParam = params.get('pr');
+      if (prParam && prParam.trim().length > 0) {
+        setPrUrl(prParam.trim());
+        setActivePreset('');
+        runAnalysis(prParam.trim());
+        return;
+      }
+    } catch {
+      // Fallback to default
+    }
+
     // Run default scenario on initial mount
     runAnalysis(undefined, 'auth-core');
   }, []);
