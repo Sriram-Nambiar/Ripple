@@ -34,6 +34,53 @@ Ripple is designed to be more than a demo. The project assumes:
 - production-safe handling of secrets and partial analysis,
 - and maintainable documentation for the full system lifecycle.
 
+## Core Analysis Engine (Part 2)
+
+The core static analysis engine is implemented in [`src/domain/analysis`](./src/domain/analysis):
+
+- **AST Parsing (Tree-sitter)**: parses JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`) and TypeScript (`.ts`, `.tsx`, `.mts`, `.cts`), extracting static imports and exports while ignoring unsupported files.
+- **Module Resolution**: resolves relative imports, extension-less paths, TypeScript ESM `.js` -> `.ts` mappings, and directory index files (`index.ts`, `index.js`).
+- **Dependency Graph**: builds a directed file-level graph using Graphology where directed edges represent `importer -> imported` relationships.
+- **Blast-Radius Traversal**: executes reverse graph traversal (BFS) from changed files to classify direct (`depth = 1`) and indirect (`depth >= 2`) dependents without counting changed files as affected files.
+- **Heuristic Risk Scoring**: produces an explainable, multi-factor risk score (0-100) and risk level (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) with detailed factor breakdown and rationale.
+- **Structured Dashboard Output (Person 3 Hand-off)**: outputs structured file classifications, risk scores, edge mappings, and user-facing warnings for unresolved imports or unsupported files.
+
+### Usage
+
+```ts
+import { analyzeRepository } from './src/index.js';
+
+const result = await analyzeRepository({
+  repositoryFiles: [
+    { path: 'auth.js', content: 'export function authenticate() {}' },
+    { path: 'users.js', content: 'import { authenticate } from "./auth.js";' },
+    { path: 'orders.js', content: 'import { authenticate } from "./auth.js";' },
+    { path: 'profile.js', content: 'import { getUser } from "./users.js";' },
+    { path: 'checkout.js', content: 'import { createOrder } from "./orders.js";' }
+  ],
+  changedFiles: ['auth.js']
+});
+
+console.log(result.riskScore); // 0-100
+console.log(result.riskLevel); // "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"
+console.log(result.files);     // files with type, status, riskScore, depth, reasons
+console.log(result.dependencies); // [{ source: 'users.js', target: 'auth.js' }, ...]
+console.log(result.reasons);   // explainable rationale strings
+```
+
+### Development & Validation
+
+```bash
+# Typecheck
+npm run typecheck
+
+# Run test suite
+npm run test
+
+# Build
+npm run build
+```
+
 ## Status
 
-This repository currently contains the project documentation and supporting templates for a production-oriented engineering workflow. No source-code functionality has been changed in this pass.
+The Core Analysis Engine (Part 2) is complete, tested, and ready for integration with the background worker and Person 3 dashboard.
