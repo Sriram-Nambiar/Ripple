@@ -40,6 +40,7 @@ export interface RiskWeights {
   criticalityWeight?: number; // default ~20%
   changeSizeWeight?: number; // default ~15%
   testCoverageWeight?: number; // default ~10%
+  auditTrail?: boolean; // extended architectural audit logging
 }
 
 export interface AnalysisOptions {
