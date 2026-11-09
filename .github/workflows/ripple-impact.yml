@@ -13,6 +13,7 @@ jobs:
   impact-analysis:
     name: Blast-Radius & Architectural Risk Radar
     runs-on: ubuntu-latest
+    if: github.repository == 'harsh200623/Ripple'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
