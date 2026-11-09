@@ -55,9 +55,24 @@ interface AnalysisData {
 }
 
 const PRESET_OPTIONS = [
-  { key: 'auth-core', name: '⚡ Auth Core (Person 2)', url: 'https://github.com/ripple-impact/demo/pull/1' },
-  { key: 'user-service', name: '👥 User API & Routes', url: 'https://github.com/ripple-impact/demo/pull/2' },
-  { key: 'payment-gateway', name: '💳 Payment Gateway', url: 'https://github.com/ripple-impact/demo/pull/3' },
+  {
+    key: 'auth-core',
+    name: '⚡ Auth Module (Person 2)',
+    url: 'https://github.com/ripple-impact/demo/pull/1',
+    description: 'Core auth refactor affecting users, orders, profile, and checkout',
+  },
+  {
+    key: 'user-service',
+    name: '👥 User Service & Routes',
+    url: 'https://github.com/ripple-impact/demo/pull/2',
+    description: 'User model modification propagating to controllers and express routes',
+  },
+  {
+    key: 'payment-gateway',
+    name: '💳 Stripe Payment Intent',
+    url: 'https://github.com/ripple-impact/demo/pull/3',
+    description: 'High-criticality billing service refactor with deep propagation',
+  },
 ];
 
 function App() {
@@ -66,6 +81,7 @@ function App() {
   const [loading, setLoading] = useState<boolean>(false);
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileResult | null>(null);
+  const [fileFilter, setFileFilter] = useState<'all' | 'changed' | 'direct' | 'indirect' | 'safe'>('all');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const runAnalysis = async (urlToAnalyze?: string, presetKey?: string) => {
@@ -98,7 +114,7 @@ function App() {
   };
 
   useEffect(() => {
-    // Run default analysis on initial mount
+    // Run default scenario on initial mount
     runAnalysis(undefined, 'auth-core');
   }, []);
 
@@ -108,12 +124,22 @@ function App() {
     runAnalysis(preset.url, preset.key);
   };
 
-  const getRiskClass = (level?: string) => {
+  const getRiskTagClass = (level?: string) => {
     switch (level) {
-      case 'CRITICAL': return 'risk-critical';
-      case 'HIGH': return 'risk-high';
-      case 'MEDIUM': return 'risk-medium';
-      case 'LOW': return 'risk-low';
+      case 'CRITICAL': return 'tag-critical';
+      case 'HIGH': return 'tag-high';
+      case 'MEDIUM': return 'tag-medium';
+      case 'LOW': return 'tag-low';
+      default: return 'tag-medium';
+    }
+  };
+
+  const getRiskCardClass = (level?: string) => {
+    switch (level) {
+      case 'CRITICAL': return 'risk-card-critical';
+      case 'HIGH': return 'risk-card-high';
+      case 'MEDIUM': return 'risk-card-medium';
+      case 'LOW': return 'risk-card-low';
       default: return '';
     }
   };
@@ -121,55 +147,91 @@ function App() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'changed':
-        return <span className="badge badge-changed">Changed</span>;
+        return <span className="risk-level-tag tag-critical">Changed</span>;
       case 'direct_affected':
-        return <span className="badge badge-direct">Direct</span>;
+        return <span className="risk-level-tag tag-medium">Direct</span>;
       case 'indirect_affected':
-        return <span className="badge badge-indirect">Indirect</span>;
+        return <span className="risk-level-tag tag-high" style={{ background: 'rgba(99,102,241,0.2)', color: '#c7d2fe', borderColor: 'rgba(99,102,241,0.4)' }}>Indirect</span>;
       default:
-        return <span className="badge badge-unaffected">Safe</span>;
+        return <span className="risk-level-tag" style={{ background: 'rgba(100,116,139,0.2)', color: '#94a3b8', borderColor: 'rgba(100,116,139,0.3)' }}>Safe</span>;
     }
   };
 
-  return (
-    <div className="app">
-      {/* Sidebar */}
-      <aside className="sidebar">
-        <h1 className="logo">〰 Ripple</h1>
-        <p className="subtitle">PR Weather Radar · Impact Engine</p>
+  // Filter files based on selected tab
+  const filteredFiles = analysis?.files.filter((f) => {
+    if (fileFilter === 'changed') return f.status === 'changed';
+    if (fileFilter === 'direct') return f.status === 'direct_affected';
+    if (fileFilter === 'indirect') return f.status === 'indirect_affected';
+    if (fileFilter === 'safe') return f.status === 'unaffected';
+    return true;
+  }) || [];
 
-        <nav>
-          <div className="nav-item active">▦ PR Dashboard</div>
-          <div className="nav-item" onClick={() => window.open('https://github.com/harsh200623/Ripple', '_blank')}>
-            ▥ GitHub Repo ↗
+  return (
+    <div className="app-container">
+      {/* Sidebar */}
+      <aside className="app-sidebar">
+        <div className="brand-section">
+          <div className="brand-icon-box">
+            <span>〰</span>
           </div>
-          <div className="nav-item" onClick={() => window.open('https://github.com/harsh200623/Ripple/pull/2', '_blank')}>
-            ⓘ PR #2 Merged ↗
+          <div className="brand-titles">
+            <span className="brand-name">Ripple</span>
+            <span className="brand-subtitle">PR Weather Radar</span>
+          </div>
+        </div>
+
+        <div className="status-pill-online">
+          <span className="pulse-dot"></span>
+          <span>Engine Online · v1.0</span>
+        </div>
+
+        <nav className="nav-group">
+          <div className="nav-group-title">Analytics</div>
+          <div className="nav-link active">
+            <span>▦</span>
+            <span>Blast Radius Radar</span>
+          </div>
+          <div className="nav-link" onClick={() => window.open('https://github.com/harsh200623/Ripple/pull/2', '_blank')}>
+            <span>↗</span>
+            <span>PR #2 (Core Engine)</span>
+          </div>
+          <div className="nav-link" onClick={() => window.open('https://github.com/harsh200623/Ripple', '_blank')}>
+            <span>★</span>
+            <span>GitHub Repository</span>
           </div>
         </nav>
 
-        <div className="sidebar-bottom">
-          <strong>Ripple Core Engine v1.0</strong>
-          <p style={{ marginTop: '6px', fontSize: '11px', color: '#a78bfa' }}>
-            Tree-sitter AST · Graphology · Reverse BFS
-          </p>
+        <div className="sidebar-footer">
+          <div className="footer-engine-title">
+            <span>⚡ Tree-sitter & Graphology</span>
+          </div>
+          <div className="footer-engine-desc">
+            Deterministic AST reverse graph traversal with heuristic risk scoring.
+          </div>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="main">
-        <header>
-          <h1>Welcome to <span>Ripple</span></h1>
-          <p>Analyze blast radius. Visualize reverse dependencies. Mitigate risk before merge.</p>
+      {/* Main Viewport */}
+      <main className="main-viewport">
+        {/* Header */}
+        <header className="view-header">
+          <div>
+            <h1>Pull Request <span>Impact Radar</span></h1>
+            <p>Predict downstream code breakage and architectural blast radius before merge.</p>
+          </div>
+          <div className="header-badges">
+            <span className="meta-pill">AST Reverse BFS</span>
+            <span className="meta-pill">Zero Runtime Execution</span>
+          </div>
         </header>
 
-        {/* Preset demo triggers */}
-        <div className="preset-bar">
-          <span className="preset-label">Quick Scenarios:</span>
+        {/* Preset Scenarios */}
+        <div className="scenario-bar">
+          <span className="scenario-title">Preset Scenarios:</span>
           {PRESET_OPTIONS.map((opt) => (
             <button
               key={opt.key}
-              className={`preset-btn ${activePreset === opt.key ? 'active' : ''}`}
+              className={`scenario-chip ${activePreset === opt.key ? 'active' : ''}`}
               onClick={() => handlePresetClick(opt)}
             >
               {opt.name}
@@ -177,200 +239,281 @@ function App() {
           ))}
         </div>
 
-        {/* PR URL Input */}
-        <section className="search-box">
+        {/* Command Search Bar */}
+        <div className="command-bar">
+          <span className="command-icon">⑂</span>
           <input
             type="text"
+            className="command-input"
             value={prUrl}
             onChange={(e) => {
               setPrUrl(e.target.value);
               setActivePreset('');
             }}
-            placeholder="Enter a GitHub Pull Request URL (e.g. https://github.com/harsh200623/Ripple/pull/2)..."
+            placeholder="Enter public GitHub PR URL (e.g. https://github.com/harsh200623/Ripple/pull/2)..."
           />
-          <button disabled={loading} onClick={() => runAnalysis(prUrl)}>
-            {loading ? 'Analyzing AST...' : 'Analyze PR →'}
+          <button
+            className="command-btn"
+            disabled={loading}
+            onClick={() => runAnalysis(prUrl)}
+          >
+            {loading ? (
+              <>
+                <span className="pulse-dot" style={{ background: '#fff' }}></span>
+                <span>Traversing AST...</span>
+              </>
+            ) : (
+              <span>Analyze Blast Radius →</span>
+            )}
           </button>
-        </section>
+        </div>
 
         {errorMsg && (
-          <div style={{ marginTop: '15px', padding: '12px', background: '#451a1a', border: '1px solid #7f1d1d', borderRadius: '8px', color: '#fca5a5', fontSize: '13px' }}>
-            ⚠ {errorMsg}
+          <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#fca5a5', fontSize: '13px' }}>
+            ⚠️ {errorMsg}
           </div>
         )}
 
-        {/* Metric Cards */}
-        <section className="cards">
-          <div className={`card ${getRiskClass(analysis?.riskLevel)}`}>
-            <p>Risk Score</p>
-            <h2>{analysis ? `${analysis.riskScore} / 100` : '-- / 100'}</h2>
-            <span>{analysis ? `${analysis.riskLevel} RISK` : 'Awaiting analysis'}</span>
-          </div>
-
-          <div className="card">
-            <p>Affected Dependents</p>
-            <h2>{analysis ? analysis.affectedFiles : '--'}</h2>
-            <span>{analysis ? `${analysis.summary.directAffectedCount} direct · ${analysis.summary.indirectAffectedCount} indirect` : 'Files downstream'}</span>
-          </div>
-
-          <div className="card">
-            <p>Max Impact Depth</p>
-            <h2>{analysis ? `${analysis.summary.maxImpactDepth} hops` : '--'}</h2>
-            <span>{analysis?.summary.maxImpactDepth ? `Reverse BFS propagation` : 'Waiting for PR'}</span>
-          </div>
-
-          <div className="card">
-            <p>Analysis Speed</p>
-            <h2>{analysis?.executionTimeMs !== undefined ? `${analysis.executionTimeMs}ms` : '--'}</h2>
-            <span>Static AST Graph Traversal</span>
-          </div>
-        </section>
-
-        {/* Content Panels */}
-        <section className="content-grid">
-          {/* Panel 1: Risk Overview */}
-          <div className="panel">
-            <h2>
-              <span>Risk Overview & Breakdown</span>
+        {/* Metric HUD Cards */}
+        <section className="hud-grid">
+          <div className={`hud-card ${getRiskCardClass(analysis?.riskLevel)}`}>
+            <div className="hud-card-top">
+              <span className="hud-label">Risk Score</span>
               {analysis && (
-                <span className={`badge ${analysis.riskScore >= 50 ? 'badge-changed' : 'badge-direct'}`}>
+                <span className={`risk-level-tag ${getRiskTagClass(analysis.riskLevel)}`}>
                   {analysis.riskLevel}
                 </span>
               )}
-            </h2>
+            </div>
+            <div className="hud-value">
+              {analysis ? analysis.riskScore : '--'}
+              <span style={{ fontSize: '16px', color: '#64748b', fontWeight: 500 }}> / 100</span>
+            </div>
+            <div className="hud-subtext">
+              <span>{analysis ? `${analysis.riskLevel} architectural risk` : 'Awaiting analysis'}</span>
+            </div>
+          </div>
+
+          <div className="hud-card">
+            <div className="hud-card-top">
+              <span className="hud-label">Blast Radius</span>
+              <div className="hud-icon-badge" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>
+                ◈
+              </div>
+            </div>
+            <div className="hud-value">
+              {analysis ? analysis.affectedFiles : '--'}
+              <span style={{ fontSize: '16px', color: '#64748b', fontWeight: 500 }}> files</span>
+            </div>
+            <div className="hud-subtext">
+              <span>{analysis ? `${analysis.summary.directAffectedCount} direct · ${analysis.summary.indirectAffectedCount} indirect` : 'Downstream impact'}</span>
+            </div>
+          </div>
+
+          <div className="hud-card">
+            <div className="hud-card-top">
+              <span className="hud-label">Propagation Depth</span>
+              <div className="hud-icon-badge" style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>
+                ⤹
+              </div>
+            </div>
+            <div className="hud-value">
+              {analysis ? `${analysis.summary.maxImpactDepth}` : '--'}
+              <span style={{ fontSize: '16px', color: '#64748b', fontWeight: 500 }}> hops</span>
+            </div>
+            <div className="hud-subtext">
+              <span>Max reverse dependency distance</span>
+            </div>
+          </div>
+
+          <div className="hud-card">
+            <div className="hud-card-top">
+              <span className="hud-label">Analysis Speed</span>
+              <div className="hud-icon-badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399' }}>
+                ⚡
+              </div>
+            </div>
+            <div className="hud-value" style={{ color: '#34d399' }}>
+              {analysis?.executionTimeMs !== undefined ? `${analysis.executionTimeMs}` : '--'}
+              <span style={{ fontSize: '16px', color: '#64748b', fontWeight: 500 }}> ms</span>
+            </div>
+            <div className="hud-subtext">
+              <span>Static AST & BFS graph cycle-safe</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Content Panels Grid */}
+        <section className="panels-grid">
+          {/* Panel 1: Risk Overview & Breakdown */}
+          <div className="glass-panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <span>🛡 Risk Factor Breakdown</span>
+              </div>
+              <span className="panel-meta">Weighted Heuristic Model</span>
+            </div>
 
             {analysis ? (
-              <div>
-                <div className="breakdown-row">
-                  <div className="breakdown-labels">
-                    <span>Blast Radius (Affected Files)</span>
-                    <span>{analysis.summary.breakdown.blastRadiusPoints} / 35 pts</span>
+              <div className="factor-list">
+                <div className="factor-item">
+                  <div className="factor-row">
+                    <span className="factor-name">Blast Radius (Affected Files)</span>
+                    <span className="factor-pts">{analysis.summary.breakdown.blastRadiusPoints} / 35 pts</span>
                   </div>
-                  <div className="breakdown-bar-bg">
+                  <div className="factor-bar-track">
                     <div
-                      className="breakdown-bar-fill"
-                      style={{ width: `${(analysis.summary.breakdown.blastRadiusPoints / 35) * 100}%`, background: '#f43f5e' }}
+                      className="factor-bar-fill"
+                      style={{
+                        width: `${(analysis.summary.breakdown.blastRadiusPoints / 35) * 100}%`,
+                        background: 'linear-gradient(90deg, #f43f5e 0%, #fb7185 100%)',
+                      }}
                     />
                   </div>
                 </div>
 
-                <div className="breakdown-row">
-                  <div className="breakdown-labels">
-                    <span>Dependency Depth</span>
-                    <span>{analysis.summary.breakdown.depthPoints} / 20 pts</span>
+                <div className="factor-item">
+                  <div className="factor-row">
+                    <span className="factor-name">Dependency Depth</span>
+                    <span className="factor-pts">{analysis.summary.breakdown.depthPoints} / 20 pts</span>
                   </div>
-                  <div className="breakdown-bar-bg">
+                  <div className="factor-bar-track">
                     <div
-                      className="breakdown-bar-fill"
-                      style={{ width: `${(analysis.summary.breakdown.depthPoints / 20) * 100}%`, background: '#fbbf24' }}
+                      className="factor-bar-fill"
+                      style={{
+                        width: `${(analysis.summary.breakdown.depthPoints / 20) * 100}%`,
+                        background: 'linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%)',
+                      }}
                     />
                   </div>
                 </div>
 
-                <div className="breakdown-row">
-                  <div className="breakdown-labels">
-                    <span>Module Criticality</span>
-                    <span>{analysis.summary.breakdown.criticalityPoints} / 20 pts</span>
+                <div className="factor-item">
+                  <div className="factor-row">
+                    <span className="factor-name">Module Criticality (Security/Auth)</span>
+                    <span className="factor-pts">{analysis.summary.breakdown.criticalityPoints} / 20 pts</span>
                   </div>
-                  <div className="breakdown-bar-bg">
+                  <div className="factor-bar-track">
                     <div
-                      className="breakdown-bar-fill"
-                      style={{ width: `${(analysis.summary.breakdown.criticalityPoints / 20) * 100}%`, background: '#8b5cf6' }}
+                      className="factor-bar-fill"
+                      style={{
+                        width: `${(analysis.summary.breakdown.criticalityPoints / 20) * 100}%`,
+                        background: 'linear-gradient(90deg, #8b5cf6 0%, #c084fc 100%)',
+                      }}
                     />
                   </div>
                 </div>
 
-                <div className="breakdown-row">
-                  <div className="breakdown-labels">
-                    <span>Change Volume</span>
-                    <span>{analysis.summary.breakdown.changeSizePoints} / 15 pts</span>
+                <div className="factor-item">
+                  <div className="factor-row">
+                    <span className="factor-name">Change Volume</span>
+                    <span className="factor-pts">{analysis.summary.breakdown.changeSizePoints} / 15 pts</span>
                   </div>
-                  <div className="breakdown-bar-bg">
+                  <div className="factor-bar-track">
                     <div
-                      className="breakdown-bar-fill"
-                      style={{ width: `${(analysis.summary.breakdown.changeSizePoints / 15) * 100}%`, background: '#38bdf8' }}
+                      className="factor-bar-fill"
+                      style={{
+                        width: `${(analysis.summary.breakdown.changeSizePoints / 15) * 100}%`,
+                        background: 'linear-gradient(90deg, #0284c7 0%, #38bdf8 100%)',
+                      }}
                     />
                   </div>
                 </div>
 
-                <div className="breakdown-row">
-                  <div className="breakdown-labels">
-                    <span>Test Verification Factor</span>
-                    <span>{analysis.summary.breakdown.testCoveragePoints} / 10 pts</span>
+                <div className="factor-item">
+                  <div className="factor-row">
+                    <span className="factor-name">Test Verification Factor</span>
+                    <span className="factor-pts">{analysis.summary.breakdown.testCoveragePoints} / 10 pts</span>
                   </div>
-                  <div className="breakdown-bar-bg">
+                  <div className="factor-bar-track">
                     <div
-                      className="breakdown-bar-fill"
-                      style={{ width: `${(analysis.summary.breakdown.testCoveragePoints / 10) * 100}%`, background: '#a855f7' }}
+                      className="factor-bar-fill"
+                      style={{
+                        width: `${(analysis.summary.breakdown.testCoveragePoints / 10) * 100}%`,
+                        background: 'linear-gradient(90deg, #6366f1 0%, #a5b4fc 100%)',
+                      }}
                     />
                   </div>
                 </div>
 
-                <div style={{ marginTop: '16px' }}>
-                  <p style={{ fontSize: '12px', color: '#94a3b8', marginBottom: '8px', fontWeight: 600 }}>KEY DRIVERS:</p>
-                  {analysis.reasons.map((r, i) => (
-                    <div key={i} className="reason-bullet">
-                      <span className="reason-icon">▸</span>
-                      <span>{r}</span>
-                    </div>
-                  ))}
+                {/* Reviewer Verdict Callout */}
+                <div className="verdict-callout">
+                  <div className="verdict-header" style={{ color: analysis.riskScore >= 70 ? '#f43f5e' : analysis.riskScore >= 40 ? '#f59e0b' : '#10b981' }}>
+                    {analysis.riskScore >= 70 ? '● High Risk: Multi-Reviewer Sign-off Recommended' : analysis.riskScore >= 40 ? '● Moderate Risk: Downstream Verification Needed' : '● Low Risk: Isolated Change'}
+                  </div>
+                  <div className="verdict-text">
+                    {analysis.reasons.slice(0, 3).map((r, i) => (
+                      <div key={i} className="reason-tag">
+                        <span className="reason-bullet-point">▸</span>
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (
-              <div className="placeholder">Risk visualization will appear here.</div>
+              <div className="factor-list" style={{ justifyContent: 'center', alignItems: 'center', flex: 1, color: '#64748b' }}>
+                Waiting for pull request analysis...
+              </div>
             )}
           </div>
 
           {/* Panel 2: Interactive Dependency Graph */}
-          <div className="panel">
-            <h2>
-              <span>Dependency Blast Radius Graph</span>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>
+          <div className="glass-panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <span>◈ Dependency Blast-Radius Graph</span>
+              </div>
+              <span className="panel-meta">
                 {analysis ? `${analysis.files.length} nodes · ${analysis.dependencies.length} edges` : ''}
               </span>
-            </h2>
+            </div>
 
             {analysis ? (
-              <div>
-                <svg className="graph-svg" viewBox="0 0 500 240">
+              <div className="graph-canvas-container">
+                <svg className="graph-canvas" viewBox="0 0 460 220">
                   <defs>
-                    <marker id="arrow" viewBox="0 0 10 10" refX="22" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                    <marker id="arrow-head" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+                    </marker>
+                    <marker id="arrow-head-active" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#8b5cf6" />
                     </marker>
                   </defs>
 
-                  {/* Render dependency edges */}
-                  {analysis.dependencies.map((edge, i) => {
+                  {/* Edges */}
+                  {analysis.dependencies.map((edge, idx) => {
                     const sourceIdx = analysis.files.findIndex((f) => f.path === edge.source);
                     const targetIdx = analysis.files.findIndex((f) => f.path === edge.target);
 
-                    const x1 = 80 + (sourceIdx >= 0 ? (sourceIdx % 3) * 160 : 80);
-                    const y1 = 60 + Math.floor(sourceIdx / 3) * 90;
-                    const x2 = 80 + (targetIdx >= 0 ? (targetIdx % 3) * 160 : 380);
-                    const y2 = 60 + Math.floor(targetIdx / 3) * 90;
+                    const x1 = 80 + (sourceIdx >= 0 ? (sourceIdx % 3) * 150 : 80);
+                    const y1 = 55 + Math.floor(sourceIdx / 3) * 85;
+                    const x2 = 80 + (targetIdx >= 0 ? (targetIdx % 3) * 150 : 380);
+                    const y2 = 55 + Math.floor(targetIdx / 3) * 85;
+
+                    const isHighlighted = selectedFile && (edge.source === selectedFile.path || edge.target === selectedFile.path);
 
                     return (
-                      <line
-                        key={i}
-                        x1={x1}
-                        y1={y1}
-                        x2={x2}
-                        y2={y2}
-                        stroke="#475569"
-                        strokeWidth="2"
-                        strokeDasharray="4"
-                        markerEnd="url(#arrow)"
+                      <path
+                        key={idx}
+                        d={`M ${x1} ${y1} C ${(x1 + x2) / 2} ${y1}, ${(x1 + x2) / 2} ${y2}, ${x2} ${y2}`}
+                        stroke={isHighlighted ? '#8b5cf6' : '#334155'}
+                        strokeWidth={isHighlighted ? '2.5' : '1.5'}
+                        strokeDasharray={isHighlighted ? 'none' : '4'}
+                        fill="none"
+                        markerEnd={isHighlighted ? 'url(#arrow-head-active)' : 'url(#arrow-head)'}
                       />
                     );
                   })}
 
-                  {/* Render file nodes */}
-                  {analysis.files.map((file, i) => {
-                    const x = 80 + (i % 3) * 160;
-                    const y = 60 + Math.floor(i / 3) * 90;
+                  {/* Nodes */}
+                  {analysis.files.map((file, idx) => {
+                    const x = 80 + (idx % 3) * 150;
+                    const y = 55 + Math.floor(idx / 3) * 85;
 
                     let fill = '#1e293b';
                     let stroke = '#475569';
+
                     if (file.status === 'changed') {
                       fill = '#881337';
                       stroke = '#f43f5e';
@@ -387,13 +530,13 @@ function App() {
                     return (
                       <g
                         key={file.path}
+                        className="node-group"
                         onClick={() => setSelectedFile(file)}
-                        style={{ cursor: 'pointer' }}
                       >
                         <circle
                           cx={x}
                           cy={y}
-                          r={isSelected ? 24 : 20}
+                          r={isSelected ? 22 : 18}
                           fill={fill}
                           stroke={isSelected ? '#ffffff' : stroke}
                           strokeWidth={isSelected ? 3 : 2}
@@ -402,31 +545,30 @@ function App() {
                           x={x}
                           y={y + 4}
                           fill="#ffffff"
-                          fontSize="9.5"
-                          fontWeight="bold"
+                          fontSize="9"
+                          fontWeight="700"
+                          fontFamily="monospace"
                           textAnchor="middle"
                         >
-                          {file.path.split('/').pop()?.slice(0, 11)}
+                          {file.path.split('/').pop()?.slice(0, 10)}
                         </text>
                       </g>
                     );
                   })}
                 </svg>
 
-                {/* Node details footer */}
+                {/* Selected Node Details Card */}
                 {selectedFile && (
-                  <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className="node-inspector-card">
                     <div>
-                      <div style={{ fontSize: '13px', fontWeight: 600, color: '#f1f5f9', fontFamily: 'monospace' }}>
-                        {selectedFile.path}
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                        {selectedFile.reasons[0] || 'Selected module'}
+                      <div className="inspector-path">{selectedFile.path}</div>
+                      <div className="inspector-sub">
+                        {selectedFile.reasons[0] || 'Selected repository module'}
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: '#a78bfa' }}>
-                        Score: {selectedFile.riskScore}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span className="risk-num" style={{ color: selectedFile.riskScore >= 70 ? '#f43f5e' : selectedFile.riskScore >= 40 ? '#fbbf24' : '#10b981' }}>
+                        Risk: {selectedFile.riskScore}
                       </span>
                       {getStatusBadge(selectedFile.status)}
                     </div>
@@ -434,63 +576,129 @@ function App() {
                 )}
               </div>
             ) : (
-              <div className="placeholder">Dependency graph will appear here.</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#64748b' }}>
+                Dependency graph will appear here.
+              </div>
             )}
           </div>
 
-          {/* Panel 3: Top Risk Files */}
-          <div className="panel">
-            <h2>
-              <span>Affected & Changed Files</span>
-              <span style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 400 }}>
-                {analysis?.files.length || 0} total files
-              </span>
-            </h2>
+          {/* Panel 3: Affected Files Explorer */}
+          <div className="glass-panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <span>📂 Repository Files & Impact</span>
+              </div>
+              <span className="panel-meta">{filteredFiles.length} listed</span>
+            </div>
+
+            {/* Filter Tabs */}
+            <div className="filter-tabs">
+              <button
+                className={`filter-tab ${fileFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setFileFilter('all')}
+              >
+                All ({analysis?.files.length || 0})
+              </button>
+              <button
+                className={`filter-tab ${fileFilter === 'changed' ? 'active' : ''}`}
+                onClick={() => setFileFilter('changed')}
+              >
+                Changed ({analysis?.files.filter((f) => f.status === 'changed').length || 0})
+              </button>
+              <button
+                className={`filter-tab ${fileFilter === 'direct' ? 'active' : ''}`}
+                onClick={() => setFileFilter('direct')}
+              >
+                Direct ({analysis?.files.filter((f) => f.status === 'direct_affected').length || 0})
+              </button>
+              <button
+                className={`filter-tab ${fileFilter === 'indirect' ? 'active' : ''}`}
+                onClick={() => setFileFilter('indirect')}
+              >
+                Indirect ({analysis?.files.filter((f) => f.status === 'indirect_affected').length || 0})
+              </button>
+              <button
+                className={`filter-tab ${fileFilter === 'safe' ? 'active' : ''}`}
+                onClick={() => setFileFilter('safe')}
+              >
+                Safe ({analysis?.files.filter((f) => f.status === 'unaffected').length || 0})
+              </button>
+            </div>
 
             {analysis ? (
-              <div style={{ maxHeight: '280px', overflowY: 'auto', paddingRight: '4px' }}>
-                {analysis.files.map((f) => (
-                  <div
-                    key={f.path}
-                    className={`file-item ${selectedFile?.path === f.path ? 'selected' : ''}`}
-                    onClick={() => setSelectedFile(f)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      {getStatusBadge(f.status)}
-                      <span style={{ fontFamily: 'monospace', fontWeight: 500 }}>{f.path}</span>
+              <div className="file-table">
+                {filteredFiles.map((file) => {
+                  const ext = file.path.endsWith('.ts') || file.path.endsWith('.tsx') ? 'ts' : 'js';
+                  const isSelected = selectedFile?.path === file.path;
+
+                  return (
+                    <div
+                      key={file.path}
+                      className={`file-row ${isSelected ? 'selected' : ''}`}
+                      onClick={() => setSelectedFile(file)}
+                    >
+                      <div className="file-path-col">
+                        <span className={`file-ext-icon ${ext === 'ts' ? 'icon-ts' : 'icon-js'}`}>{ext}</span>
+                        <span>{file.path}</span>
+                      </div>
+                      <div className="file-meta-col">
+                        <span className="depth-indicator">
+                          {file.impactDepth >= 0 ? `${file.impactDepth} hops` : 'safe'}
+                        </span>
+                        <span
+                          className="risk-num"
+                          style={{
+                            color: file.riskScore >= 70 ? '#f43f5e' : file.riskScore >= 40 ? '#fbbf24' : '#10b981',
+                          }}
+                        >
+                          {file.riskScore}
+                        </span>
+                        {getStatusBadge(file.status)}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        {f.impactDepth >= 0 ? `${f.impactDepth} hops` : 'unaffected'}
-                      </span>
-                      <span style={{ fontWeight: 700, color: f.riskScore >= 70 ? '#f43f5e' : f.riskScore >= 40 ? '#fbbf24' : '#10b981' }}>
-                        {f.riskScore}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <div className="placeholder">Affected files will appear here.</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#64748b' }}>
+                Files will appear here.
+              </div>
             )}
           </div>
 
-          {/* Panel 4: Recent Analysis & Explanations */}
-          <div className="panel">
-            <h2>
-              <span>PR Context & Audit Log</span>
-              <span style={{ fontSize: '11px', color: '#10b981', fontWeight: 600 }}>● Analysis Active</span>
-            </h2>
+          {/* Panel 4: Dependency Edges & Audit Log */}
+          <div className="glass-panel">
+            <div className="panel-header">
+              <div className="panel-title">
+                <span>⇄ Dependency Resolution Matrix</span>
+              </div>
+              <span className="panel-meta">{analysis?.dependencies.length || 0} resolved edges</span>
+            </div>
 
             {analysis ? (
-              <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: '1.6' }}>
-                <p><strong>Pull Request:</strong> <span style={{ color: '#a78bfa' }}>{analysis.pullRequest?.title || 'PR Analysis'}</span></p>
-                <p style={{ marginTop: '4px' }}><strong>Target URL:</strong> <a href={analysis.pullRequest?.url} target="_blank" rel="noreferrer" style={{ color: '#38bdf8', textDecoration: 'none' }}>{analysis.pullRequest?.url}</a></p>
-                <p style={{ marginTop: '4px' }}><strong>Downstream Blast Radius:</strong> {analysis.summary.totalAffectedCount} files potentially impacted across {analysis.summary.maxImpactDepth} dependency levels.</p>
+              <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                <table className="edge-matrix">
+                  <thead>
+                    <tr>
+                      <th>Importer File (Dependent)</th>
+                      <th>Target File (Dependency)</th>
+                      <th>Import Specifier</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {analysis.dependencies.map((edge, idx) => (
+                      <tr key={idx}>
+                        <td style={{ color: '#c4b5fd' }}>{edge.source}</td>
+                        <td style={{ color: '#fb7185' }}>{edge.target}</td>
+                        <td style={{ color: '#94a3b8' }}>{edge.importPath}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
                 {analysis.warnings.length > 0 && (
-                  <div style={{ marginTop: '12px', padding: '10px', background: '#3b2110', border: '1px solid #78350f', borderRadius: '6px', fontSize: '12px', color: '#fde047' }}>
-                    <strong>Warnings detected:</strong>
+                  <div style={{ marginTop: '16px', padding: '10px 14px', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '6px', fontSize: '11.5px', color: '#fef08a' }}>
+                    <strong>Parser & Resolution Warnings:</strong>
                     <ul style={{ paddingLeft: '16px', marginTop: '4px' }}>
                       {analysis.warnings.map((w, idx) => (
                         <li key={idx}>{w}</li>
@@ -498,20 +706,11 @@ function App() {
                     </ul>
                   </div>
                 )}
-
-                <div style={{ marginTop: '16px', padding: '12px', background: '#0f172a', borderRadius: '8px', border: '1px solid #1e293b' }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 700 }}>Reviewer Recommendation</div>
-                  <div style={{ marginTop: '4px', color: analysis.riskScore >= 75 ? '#fda4af' : analysis.riskScore >= 50 ? '#fef08a' : '#a7f3d0' }}>
-                    {analysis.riskScore >= 75
-                      ? '⚠️ High blast radius touching critical modules. Multi-reviewer sign-off and integration tests strongly recommended.'
-                      : analysis.riskScore >= 50
-                      ? '🔍 Moderate downstream impact. Verify dependent controllers and service unit tests before merge.'
-                      : '✅ Low architectural risk. Changes are isolated or localized.'}
-                  </div>
-                </div>
               </div>
             ) : (
-              <div className="placeholder">Your recent PR analysis will appear here.</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: '#64748b' }}>
+                Audit matrix will appear here.
+              </div>
             )}
           </div>
         </section>
