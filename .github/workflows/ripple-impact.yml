@@ -3,6 +3,12 @@ name: Ripple PR Impact Radar
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Pull Request number to analyze'
+        required: true
+        default: '3'
 
 permissions:
   contents: read
@@ -22,14 +28,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run Ripple PR Impact Analysis & Comment
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPO_FULL_NAME: ${{ github.repository }}
         run: npx tsx scripts/pr-bot.ts
