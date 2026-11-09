@@ -311,9 +311,9 @@ async function run() {
   console.log('🌊 [Ripple PR Bot] Starting PR Impact Radar analysis...');
   const target = resolvePrTarget();
   const ALLOWED_REPO = 'harsh200623/Ripple';
-  const targetRepo = ${target.owner}/;
+  const targetRepo = `${target.owner}/${target.repo}`;
   if (targetRepo.toLowerCase() !== ALLOWED_REPO.toLowerCase()) {
-    console.log(🛑 [Ripple PR Bot] Exclusively configured to run on . Skipped for .);
+    console.log(`🛑 [Ripple PR Bot] Exclusively configured to run on ${ALLOWED_REPO}. Skipped for ${targetRepo}.`);
     process.exit(0);
   }
   console.log(`🎯 Target PR: ${target.owner}/${target.repo}#${target.prNumber} (${target.prUrl})`);
