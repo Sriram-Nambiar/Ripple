@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Graph3D } from './components/Graph3D';
 import './App.css';
 
 interface FileResult {
@@ -82,6 +83,7 @@ function App() {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
   const [selectedFile, setSelectedFile] = useState<FileResult | null>(null);
   const [fileFilter, setFileFilter] = useState<'all' | 'changed' | 'direct' | 'indirect' | 'safe'>('all');
+  const [graphMode, setGraphMode] = useState<'3d' | '2d'>('3d');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const runAnalysis = async (urlToAnalyze?: string, presetKey?: string) => {
@@ -464,14 +466,56 @@ function App() {
               <div className="panel-title">
                 <span>◈ Dependency Blast-Radius Graph</span>
               </div>
-              <span className="panel-meta">
-                {analysis ? `${analysis.files.length} nodes · ${analysis.dependencies.length} edges` : ''}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: '6px', padding: '2px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <button
+                    onClick={() => setGraphMode('3d')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: graphMode === '3d' ? '#6366f1' : 'transparent',
+                      color: graphMode === '3d' ? '#fff' : '#94a3b8',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    3D Orbit
+                  </button>
+                  <button
+                    onClick={() => setGraphMode('2d')}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      background: graphMode === '2d' ? '#6366f1' : 'transparent',
+                      color: graphMode === '2d' ? '#fff' : '#94a3b8',
+                      border: 'none',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    2D View
+                  </button>
+                </div>
+                <span className="panel-meta">
+                  {analysis ? `${analysis.files.length} nodes · ${analysis.dependencies.length} edges` : ''}
+                </span>
+              </div>
             </div>
 
             {analysis ? (
               <div className="graph-canvas-container">
-                <svg className="graph-canvas" viewBox="0 0 460 220">
+                {graphMode === '3d' ? (
+                  <Graph3D
+                    files={analysis.files}
+                    dependencies={analysis.dependencies}
+                    selectedFile={selectedFile}
+                    onSelectFile={setSelectedFile}
+                  />
+                ) : (
+                  <svg className="graph-canvas" viewBox="0 0 460 220">
                   <defs>
                     <marker id="arrow-head" viewBox="0 0 10 10" refX="24" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                       <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
@@ -556,6 +600,7 @@ function App() {
                     );
                   })}
                 </svg>
+                )}
 
                 {/* Selected Node Details Card */}
                 {selectedFile && (

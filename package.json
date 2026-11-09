@@ -9,6 +9,7 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "server": "tsx src/server.ts",
+    "bot": "tsx scripts/pr-bot.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
