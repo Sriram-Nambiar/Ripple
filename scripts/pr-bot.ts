@@ -102,7 +102,7 @@ function generatePrCommentBody(
   const webBaseUrl = (
     process.env.RIPPLE_WEB_URL ||
     process.env.RENDER_EXTERNAL_URL ||
-    'https://ripple-pr-radar.onrender.com'
+    'https://ripple-y3zm.onrender.com'
   ).replace(/\/$/, '');
   const dashboardUrl = `${webBaseUrl}/?pr=${encodeURIComponent(prMeta.url)}`;
 

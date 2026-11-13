@@ -37,4 +37,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
           REPO_FULL_NAME: ${{ github.repository }}
+          RIPPLE_WEB_URL: https://ripple-y3zm.onrender.com
         run: npx tsx scripts/pr-bot.ts

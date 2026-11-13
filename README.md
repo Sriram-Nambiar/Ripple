@@ -6,6 +6,7 @@
 **Predict downstream code breakage and autonomously remediate architectural blast radius before merge.**
 
 [![IBM Bob](https://img.shields.io/badge/AI_Partner-IBM_Bob_(Granite_3.0)-0f62fe.svg?style=for-the-badge&logo=ibm)](https://www.ibm.com)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-ripple--y3zm.onrender.com-00C7B7.svg?style=for-the-badge&logo=render)](https://ripple-y3zm.onrender.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![React 19](https://img.shields.io/badge/React-19.0-61dafb.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL%203D-black.svg?style=for-the-badge&logo=three.js)](https://threejs.org/)
