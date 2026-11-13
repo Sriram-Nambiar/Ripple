@@ -40,6 +40,52 @@ export interface BobAskResponse {
 }
 
 /**
+ * Optional live connector to IBM watsonx / IBM Granite Foundation Model.
+ * Automatically activates when IBM_CLOUD_API_KEY and WATSONX_PROJECT_ID are provided.
+ */
+async function callIbmGraniteModel(prompt: string): Promise<string | null> {
+  const apiKey = process.env.IBM_CLOUD_API_KEY || process.env.WATSONX_API_KEY;
+  const projectId = process.env.WATSONX_PROJECT_ID || process.env.IBM_PROJECT_ID;
+  if (!apiKey || !projectId) return null;
+
+  try {
+    // 1. Obtain IBM Cloud IAM Access Token
+    const tokenRes = await fetch('https://iam.cloud.ibm.com/identity/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=${encodeURIComponent(apiKey)}`,
+    });
+    if (!tokenRes.ok) return null;
+    const tokenData = (await tokenRes.json()) as any;
+    const accessToken = tokenData.access_token;
+
+    // 2. Query IBM Granite 3.0 via watsonx.ai Text Generation endpoint
+    const watsonxUrl = 'https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2023-05-29';
+    const genRes = await fetch(watsonxUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        input: prompt,
+        model_id: 'ibm/granite-3-8b-instruct',
+        project_id: projectId,
+        parameters: {
+          max_new_tokens: 500,
+          temperature: 0.2,
+        },
+      }),
+    });
+    if (!genRes.ok) return null;
+    const genData = (await genRes.json()) as any;
+    return genData.results?.[0]?.generated_text || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Main IBM Bob Agent analysis generator.
  * Analyzes the static AST blast radius and generates intelligent remediation patches,
  * regression tests, and an architectural merge plan.
@@ -200,6 +246,27 @@ export async function askBobQuestion(
 ): Promise<BobAskResponse> {
   const q = question.toLowerCase();
   const { analysis, selectedFile } = context;
+
+  // If live IBM watsonx / Granite credentials are provided in env, invoke IBM Granite live!
+  if (process.env.IBM_CLOUD_API_KEY || process.env.WATSONX_API_KEY) {
+    const livePrompt = `You are IBM Bob, an AI agent developer assistant powered by IBM Granite 3.0 on watsonx.ai.
+Repository PR Context:
+- Changed files count: ${analysis.changedFiles}
+- Blast radius affected files: ${analysis.affectedFiles}
+- Architectural Risk: ${analysis.riskLevel} (${analysis.riskScore}/100)
+- Selected file: ${selectedFile || 'none'}
+Developer Question: ${question}
+
+Provide a concise architectural explanation, mitigation advice, and safe refactoring recommendation.`;
+
+    const liveResult = await callIbmGraniteModel(livePrompt);
+    if (liveResult && liveResult.trim().length > 0) {
+      return {
+        answer: `**🤖 IBM Bob (Live Granite 3.0 via watsonx.ai):**\n\n${liveResult.trim()}`,
+        suggestedActions: ['View Suggested Code Diff', 'Run Vitest Test Shield', 'Review Upstream Changes'],
+      };
+    }
+  }
 
   if (selectedFile) {
     const fileData = analysis.files.find((f) => f.path === selectedFile);
