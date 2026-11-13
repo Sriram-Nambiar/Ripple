@@ -5,6 +5,7 @@ import * as fs from 'node:fs';
 import { analyzeRepository } from './domain/analysis/analyzer.js';
 import { AnalysisResult, RepositoryFileInput, ChangedFileInput } from './domain/analysis/types.js';
 import { fetchGitHubPullRequest, parseGitHubPrUrl } from './domain/github/github-fetcher.js';
+import { generateBobAnalysis, askBobQuestion } from './domain/bob/bob-agent.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -317,6 +318,9 @@ app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> =
       changedFiles: prChanges,
     });
 
+    // Run IBM Bob AI agent for blast remediation & test synthesis
+    const bob = await generateBobAnalysis(result, prChanges, repoFiles);
+
     const executionTimeMs = Date.now() - startTime;
     const analysisId = 'analysis_' + Math.random().toString(36).substring(2, 9);
 
@@ -340,6 +344,7 @@ app.post('/api/v1/analyze', async (req: Request, res: Response): Promise<void> =
         pullRequest: prMeta,
         executionTimeMs,
         ...result,
+        bob,
       },
     });
   } catch (err: any) {
@@ -453,6 +458,30 @@ app.get('/api/v1/analyses/:analysisId/affected-files', (req: Request, res: Respo
     success: true,
     data: item.result.files.filter((f) => f.type === 'affected'),
   });
+});
+
+/**
+ * Interactive "Ask IBM Bob" Agent query endpoint
+ */
+app.post('/api/v1/bob/ask', async (req: Request, res: Response) => {
+  try {
+    const { question, analysis, selectedFile } = req.body;
+    if (!question || !analysis) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_REQUEST', message: 'Missing question or analysis data' },
+      });
+      return;
+    }
+
+    const answer = await askBobQuestion(question, { analysis, selectedFile });
+    res.json({ success: true, data: answer });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: { code: 'BOB_QUERY_FAILED', message: err?.message || 'IBM Bob query failed' },
+    });
+  }
 });
 
 // Serve compiled React frontend in production

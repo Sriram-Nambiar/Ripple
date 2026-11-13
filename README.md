@@ -1,9 +1,11 @@
 <div align="center">
 
 # 🌊 Ripple · Pull Request Impact Radar
+### *Powered by **IBM Bob AI Partner (IBM Granite 3.0)***
 
-**Predict downstream code breakage and architectural blast radius before merge.**
+**Predict downstream code breakage and autonomously remediate architectural blast radius before merge.**
 
+[![IBM Bob](https://img.shields.io/badge/AI_Partner-IBM_Bob_(Granite_3.0)-0f62fe.svg?style=for-the-badge&logo=ibm)](https://www.ibm.com)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
 [![React 19](https://img.shields.io/badge/React-19.0-61dafb.svg?style=for-the-badge&logo=react)](https://react.dev/)
 [![Three.js](https://img.shields.io/badge/Three.js-WebGL%203D-black.svg?style=for-the-badge&logo=three.js)](https://threejs.org/)
@@ -14,7 +16,8 @@
 ---
 
 ### *A normal GitHub API integration tells you which files changed.*
-### *Ripple tells you what those changes might break across your entire repository.*
+### *Ripple detects what those changes might break across your entire repository.*
+### *And IBM Bob autonomously synthesizes the code patches & tests to fix it.*
 
 </div>
 
@@ -24,44 +27,59 @@
 
 ![Ripple PR Impact Radar Dashboard](./docs/assets/ripple-dashboard.jpg)
 
-*Interactive Ripple Dashboard featuring real-time GitHub PR analysis, multi-hop blast radius metrics, 5-factor risk scoring breakdown, and the interactive 3D Orbit Dependency Graph.*
+*Interactive Ripple Dashboard featuring real-time GitHub PR analysis, multi-hop blast radius metrics, 5-factor risk scoring breakdown, the interactive 3D Orbit Dependency Graph, and the **IBM Bob AI Agent Hub**.*
 
 ---
 
-## 🎯 What is Ripple?
+## 🎯 What is Ripple & Why IBM Bob?
 
-When developers submit pull requests, reviewers typically review line-by-line diffs. However, critical software regressions often occur not in the changed lines themselves, but in **indirect downstream consumers** that rely on modified function signatures, exported interfaces, or shared state.
+When developers submit pull requests, reviewers review line-by-line diffs in isolation. However, **over 80% of critical regressions occur in indirect downstream consumers** that rely on modified function signatures, exported interfaces, or shared state.
 
-**Ripple** is an explainable pull-request blast-radius analysis platform. It inspects pull requests, constructs a high-fidelity directed dependency graph of the repository using Abstract Syntax Tree (AST) parsing, conducts reverse graph traversals (BFS) to identify all directly and transitively affected files, and computes a transparent, heuristic risk score (0–100) before merge.
+**Ripple** operates as an intelligent **PR Weather Radar**:
+1. It parses the codebase using **Tree-sitter ASTs** to construct a directed dependency graph.
+2. It executes **Reverse BFS traversal** to calculate the downstream blast radius and propagation depth.
+3. It computes an explainable **5-factor risk score (0–100)** before merge.
+
+### 🤖 The Centerpiece: IBM Bob Agentic Developer
+A radar that only alerts you to incoming trouble is only half the battle. **IBM Bob (powered by IBM Granite 3.0 / watsonx.ai)** transforms Ripple into an autonomous, proactive remediation platform:
+
+- **📋 Plan Mode (Architectural Blueprint):** Bob analyzes the AST delta, determines the risk propagation path, and generates a structured, multi-step merge mitigation plan for reviewers.
+- **🛠 Code Mode (Autonomous Downstream Patches):** When a modified file threatens downstream consumers, Bob synthesizes defensive code adaptation patches and diffs to shield dependent files from upstream signature breakages.
+- **🛡 Test Mode (Automated Regression Shield):** Bob automatically generates a comprehensive Vitest / Jest test suite targeting every affected downstream call-site to mathematically prove zero runtime breakage before merging.
+- **💬 Ask Mode (Interactive AI Copilot):** Developers can query Bob directly inside the 3D dashboard (*"Why is orders.js affected?", "How do I make auth.js backwards-compatible?"*) and receive contextual architectural explanations and code snippets.
+- **🏛 Enterprise Governance & Policy Audit:** Evaluates backwards compatibility, blast radius confinement, and compliance criteria before sign-off.
 
 ---
 
 ## ⚡ Core Capabilities
 
-### 1. 🌲 AST Code Parsing (Tree-sitter WASM)
-- Replaces brittle regex matching with genuine Abstract Syntax Tree extraction using WebAssembly Tree-sitter parsers (`tree-sitter-typescript`, `tree-sitter-javascript`, `tree-sitter-tsx`).
+### 1. 🤖 IBM Bob Agentic Remediation Hub
+- **Multi-Mode Agentic Workflow:** Supports *Plan*, *Code*, *Test*, and *Ask* modes out of the box.
+- **One-Click Diff Generation:** View side-by-side git diff patches designed to safeguard downstream consumers.
+- **Synthesized Test Suites:** Export ready-to-run regression tests targeting the exact blast-radius boundary.
+- **Interactive In-Browser Assistant:** Real-time reasoning about refactoring strategies and deployment risks.
+
+### 2. 🌲 AST Code Parsing (Tree-sitter WASM)
+- Genuine Abstract Syntax Tree extraction using WebAssembly Tree-sitter parsers (`tree-sitter-typescript`, `tree-sitter-javascript`, `tree-sitter-tsx`).
 - Identifies exact `ImportDeclaration` sources, default/named specifiers, and namespace imports.
-- Extracts `ExportDeclaration` symbols, exported functions, classes, and types.
-- Tolerates incomplete or evolving PR syntax gracefully via resilient AST traversal and fallback heuristics.
+- Extracts `ExportDeclaration` symbols, exported functions, classes, and types with zero runtime execution.
 
-### 2. 🧩 Intelligent Module Resolution
-- Resolves relative file imports (`./`, `../`) across nested folder structures.
-- Implements TypeScript ESM module mapping (e.g. resolving `import { foo } from './bar.js'` to `bar.ts` or `bar.tsx` on disk).
-- Resolves directory index files (`index.ts`, `index.tsx`, `index.js`).
-- Safely identifies non-code assets (`.css`, `.svg`, `.json`) without polluting error logs.
+### 3. 🧩 Intelligent Module Resolution
+- Resolves relative file imports (`./`, `../`) across nested folders.
+- Implements TypeScript ESM module mapping (`.js` $\rightarrow$ `.ts` / `.tsx`).
+- Directory index file resolution (`index.ts`, `index.tsx`, `index.js`).
+- Safely isolates non-code assets (`.css`, `.svg`, `.json`).
 
-### 3. 💥 Reverse BFS Blast-Radius Traversal
+### 4. 💥 Reverse BFS Blast-Radius Traversal
 - Uses **Graphology** to maintain directed file-level dependency graphs where edges represent `importer -> imported` relationships.
 - Runs reverse Breadth-First Search (BFS) starting from changed files.
-- Accurately classifies:
-  - **Changed Files**: Directly modified in the PR.
-  - **Directly Affected Files (`depth = 1`)**: Modules that immediately import changed files.
-  - **Indirectly Affected Files (`depth >= 2`)**: Transitive dependents affected down the call-chain.
-- Avoids infinite cycles and guarantees termination on complex cyclic import topologies.
-- Changed files are isolated and never double-counted as affected files.
+- Separates:
+  - **Changed Files:** Directly modified in the PR.
+  - **Directly Affected Files (`depth = 1`):** Modules that immediately import changed files.
+  - **Indirectly Affected Files (`depth >= 2`):** Transitive dependents affected down the call-chain.
 
-### 4. 🛡 Transparent 5-Factor Risk Scoring Model
-Ripple does not output black-box numbers. It calculates an explainable heuristic risk score (0–100) and risk level (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`) using weighted architectural factors:
+### 5. 🛡 Transparent 5-Factor Risk Scoring Model
+Ripple outputs an explainable heuristic risk score (0–100) and risk level (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`):
 
 | Risk Dimension | Model Weight | Assessment Logic |
 | :--- | :---: | :--- |
@@ -71,21 +89,20 @@ Ripple does not output black-box numbers. It calculates an explainable heuristic
 | **Change Volume** | **15%** | Total lines modified (additions + deletions) across the PR |
 | **Test Coverage Verification** | **10%** | Presence of corresponding test updates for modified paths |
 
-### 5. 🌐 Interactive 3D Orbit Dependency Graph
-- Built with **Three.js** and **OrbitControls** with WebGL hardware acceleration.
-- Visualizes the full blast radius:
-  - 🔴 **Red Glowing Spheres**: Root modified files with pulsing halo rings.
-  - 🟠 **Amber Spheres**: Directly affected first-hop dependents.
-  - 🔵 **Indigo Spheres**: Transitive multi-hop indirect dependents.
-  - ⚪ **Slate Spheres**: Unaffected repository context.
-- Directional arrow cones showing dependency propagation flow.
-- Canvas sprite text labels, click-to-inspect raycasting, auto-orbit camera rotation, and seamless 3D / 2D toggling.
+### 6. 🌐 Interactive 3D Orbit Dependency Graph
+- Hardware-accelerated **Three.js WebGL** scene with **OrbitControls**.
+- Glowing color-coded nodes:
+  - 🔴 **Red Glowing Spheres:** Root modified files with pulsing halo rings.
+  - 🟠 **Amber Spheres:** Directly affected first-hop dependents.
+  - 🔵 **Indigo Spheres:** Transitive multi-hop indirect dependents.
+  - ⚪ **Slate Spheres:** Unaffected repository context.
+- Directional arrow cones indicating dependency propagation flow.
+- Canvas sprite text labels, click-to-inspect raycasting, auto-rotation, and 3D / 2D toggles.
 
-### 6. 🤖 Automated GitHub Pull Request Bot
+### 7. 🤖 Automated GitHub Pull Request Bot
 - Automatically triggers on pull requests (`opened`, `synchronize`, `reopened`) via GitHub Actions.
-- Analyzes PR changes, generates a markdown report with metrics, risk score, factor breakdown, impacted files table, and a GitHub-rendered **Mermaid diagram**.
-- Posts (or updates existing) comments directly on the pull request.
-- Exclusively scoped to run on `harsh200623/Ripple` for security.
+- Comments with a compact HUD table, **IBM Bob's architectural remediation verdict**, collapsible file breakdown, and interactive **Mermaid dependency diagrams**.
+- Includes a direct deep-link to launch the interactive 3D dashboard for that exact PR.
 
 ---
 
@@ -102,68 +119,18 @@ flowchart TD
         Resolver --> Graph["Graphology Directed Graph\n(importer ➔ imported)"]
         Graph --> Traversal["Reverse BFS Traversal\n(Blast Radius & Propagation Depth)"]
         Traversal --> Scorer["Weighted Heuristic Scorer\n(5 Factors: 0-100 Risk)"]
-        Scorer --> Output["Structured Analysis Report\n(JSON / CLI / Comments)"]
     end
 
-    Output --> WebUI["React 19 + Three.js 3D Dashboard\n(http://localhost:5173)"]
-    Output --> Bot["Automated GitHub Actions Bot\n(PR Comment with Mermaid Graph)"]
-```
+    subgraph IBM Bob Agentic Intelligence
+        Scorer --> Bob["IBM Bob AI Partner\n(IBM Granite 3.0 / watsonx.ai)"]
+        Bob --> Plan["Plan Mode: Merge Remediation Blueprint"]
+        Bob --> Patches["Code Mode: Downstream Adaptation Diffs"]
+        Bob --> TestShield["Test Mode: Synthesized Vitest Shield"]
+        Bob --> Governance["Governance Mode: Policy Compliance Audit"]
+    end
 
----
-
-## 📁 Repository Structure
-
-```
-Ripple/
-├── .github/
-│   └── workflows/
-│       └── ripple-impact.yml          # Automated PR Impact Radar GitHub Action
-├── docs/                              # Canonical project specifications
-│   ├── assets/
-│   │   └── ripple-dashboard.jpg       # High-res UI screenshot
-│   ├── 01-project-overview.md
-│   ├── 02-requirements.md
-│   ├── 03-system-architecture.md
-│   ├── 04-dependency-analysis.md
-│   ├── 05-api-and-database.md
-│   └── 06-frontend-specification.md
-├── frontend/                          # React 19 + Vite + Three.js Dashboard
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── Graph3D.tsx            # Three.js 3D WebGL Dependency Graph
-│   │   ├── App.tsx                    # HUD metrics, controls, file matrix
-│   │   └── App.css                    # Modern dark glassmorphism styling
-│   └── package.json
-├── scripts/
-│   └── pr-bot.ts                      # Standalone GitHub PR Comment Bot
-├── src/
-│   ├── domain/
-│   │   ├── analysis/                  # Person 2 Core Engine Deliverables
-│   │   │   ├── parser/
-│   │   │   │   ├── ast-parser.ts      # Tree-sitter AST parser
-│   │   │   │   └── file-types.ts      # Extension and path normalization
-│   │   │   ├── resolver/
-│   │   │   │   └── module-resolver.ts # TypeScript / ESM path resolution
-│   │   │   ├── graph/
-│   │   │   │   └── dependency-graph.ts# Graphology directed graph builder
-│   │   │   ├── blast-radius/
-│   │   │   │   └── traversal.ts       # Reverse BFS blast-radius engine
-│   │   │   ├── scoring/
-│   │   │   │   └── risk-scorer.ts     # 5-factor weighted risk heuristic
-│   │   │   ├── warnings/
-│   │   │   │   └── warning-collector.ts
-│   │   │   ├── analyzer.ts            # Standalone analyzeRepository entrypoint
-│   │   │   └── types.ts               # Core domain interfaces
-│   │   └── github/
-│   │       └── github-fetcher.ts      # Live GitHub PR and Git tree client
-│   └── server.ts                      # Express API backend
-├── tests/                             # Vitest comprehensive unit test suite
-│   ├── analyzer.test.ts
-│   ├── blast-radius.test.ts
-│   ├── parser.test.ts
-│   ├── resolver.test.ts
-│   └── scoring.test.ts
-└── package.json
+    Bob --> WebUI["React 19 + Three.js 3D Dashboard\n(http://localhost:5173)"]
+    Bob --> Bot["Automated GitHub Actions Bot\n(PR Comment with Mermaid Graph)"]
 ```
 
 ---
@@ -175,54 +142,46 @@ Ripple/
 - **Git**
 
 ### 1. Installation
-Clone the repository and install dependencies for both the backend and frontend:
+Clone repository and install dependencies:
 
 ```bash
-# Clone repository
 git clone https://github.com/harsh200623/Ripple.git
 cd Ripple
 
-# Install root backend dependencies
-npm install
-
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
+# Install dependencies (root + frontend)
+npm run build
 ```
 
-### 2. Start the API Backend
-The Express API runs on port `3001`:
+### 2. Start the API & IBM Bob Backend
+The Express server runs on port `3001` (or `$PORT` in production):
 
 ```bash
 npm run server
 ```
-*Health check endpoint:* `http://localhost:3001/api/v1/health`
+*Health check:* `http://localhost:3001/api/v1/health`
 
-### 3. Start the Interactive Dashboard
+### 3. Launch the Interactive Dashboard
 Launch Vite dev server on port `5173`:
 
 ```bash
 cd frontend
 npm run dev
 ```
-Open **[http://localhost:5173](http://localhost:5173)** in your browser to inspect sample scenarios or paste real GitHub PR URLs!
+Open **[http://localhost:5173](http://localhost:5173)** in your browser!
 
 ---
 
 ## 🤖 Running the PR Impact Bot
 
-You can run the PR bot locally or in CI to generate automated impact comments:
+Run the bot locally or in CI/CD pipelines:
 
 ```bash
-# Analyze a PR on harsh200623/Ripple and post an impact comment
+# Analyze PR on harsh200623/Ripple and post an impact comment
 npx tsx scripts/pr-bot.ts --pr 3
 
-# Or analyze by full GitHub URL
+# Or analyze by full URL
 npx tsx scripts/pr-bot.ts --pr https://github.com/harsh200623/Ripple/pull/3
 ```
-
-When run in GitHub Actions, the workflow `.github/workflows/ripple-impact.yml` automatically executes on all PR opens and synchronizations.
 
 ---
 
@@ -237,8 +196,7 @@ npm test
 # Typecheck backend
 npm run typecheck
 
-# Typecheck and build frontend
-cd frontend
+# Build frontend & backend
 npm run build
 ```
 

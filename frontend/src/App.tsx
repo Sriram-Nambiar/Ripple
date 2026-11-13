@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Graph3D } from './components/Graph3D';
+import { IbmBobPanel, type BobAnalysisOutput } from './components/IbmBobPanel';
 import './App.css';
 
 interface FileResult {
@@ -53,6 +54,7 @@ interface AnalysisData {
     title: string;
     url: string;
   };
+  bob?: BobAnalysisOutput;
 }
 
 const PRESET_OPTIONS = [
@@ -236,6 +238,7 @@ function App() {
             <p>Predict downstream code breakage and architectural blast radius before merge.</p>
           </div>
           <div className="header-badges">
+            <span className="meta-pill" style={{ background: "rgba(15,98,254,0.2)", border: "1px solid rgba(15,98,254,0.5)", color: "#78a9ff", fontWeight: 600 }}>🤖 IBM Bob AI Partner</span>
             <span className="meta-pill">AST Reverse BFS</span>
             <span className="meta-pill">Zero Runtime Execution</span>
           </div>
@@ -358,6 +361,16 @@ function App() {
             </div>
           </div>
         </section>
+
+        {/* IBM Bob AI Agentic Remediation & Test Hub */}
+        <div style={{ marginBottom: '24px' }}>
+          <IbmBobPanel
+            bob={analysis?.bob}
+            selectedFile={selectedFile}
+            analysis={analysis}
+            onSelectFile={setSelectedFile}
+          />
+        </div>
 
         {/* Content Panels Grid */}
         <section className="panels-grid">

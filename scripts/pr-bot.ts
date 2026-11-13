@@ -1,4 +1,5 @@
 import { analyzeRepository } from '../src/domain/analysis/analyzer.js';
+import { generateBobAnalysis } from '../src/domain/bob/bob-agent.js';
 import { fetchGitHubPullRequest, getGitHubToken, parseGitHubPrUrl } from '../src/domain/github/github-fetcher.js';
 import { execSync } from 'node:child_process';
 
@@ -93,7 +94,8 @@ function resolvePrTarget(): PrBotOptions {
  */
 function generatePrCommentBody(
   analysis: any,
-  prMeta: { number: number; title: string; url: string; owner: string; repo: string }
+  prMeta: { number: number; title: string; url: string; owner: string; repo: string },
+  bob?: any
 ): string {
   const { summary, riskScore, riskLevel, files, dependencies, reasons, warnings, executionTimeMs } = analysis;
 
@@ -166,17 +168,25 @@ function generatePrCommentBody(
 
   const bd = summary.breakdown;
 
+  const bobVerdict = bob?.verdict || verdictText;
+  const bobSteps = bob?.remediationPlan
+    ? bob.remediationPlan.slice(0, 3).map((s: any) => `${s.step}. **${s.action}:** ${s.details}`).join('\n')
+    : '';
+
   return `<!-- ripple-pr-impact-radar -->
 ## 🌊 Ripple · Pull Request Impact Radar
+*Powered by **IBM Bob AI Partner (IBM Granite 3.0)***
 
-> 🚀 **[View Full 3D Interactive Blast-Radius Report on Ripple Web Dashboard →](${dashboardUrl})**
+> 🚀 **[Open Interactive 3D Blast-Radius & IBM Bob Remediation Hub →](${dashboardUrl})**
 
-### 🚦 Evaluation: ${levelEmoji} **${riskLevel} RISK (${riskScore}/100)**
-${verdictText}
+### 🚦 Risk Evaluation: ${levelEmoji} **${riskLevel} RISK (${riskScore}/100)**
+> **🤖 IBM Bob AI Verdict:** ${bobVerdict}
 
-| 🎯 Changed Files | 💥 Blast Radius | ⤹ Max Depth | ⚡ Speed |
+| 🎯 Changed Files | 💥 Blast Radius | ⤹ Max Depth | ⚡ Analysis Speed |
 | :---: | :---: | :---: | :---: |
 | **${summary.changedFileCount}** | **${summary.totalAffectedCount} downstream** (${summary.directAffectedCount} direct, ${summary.indirectAffectedCount} indirect) | **${summary.maxImpactDepth} hops** | **${executionTimeMs || '< 20'} ms** |
+
+${bobSteps ? `### 🤖 IBM Bob Architectural Remediation Plan\n${bobSteps}\n` : ''}
 
 ${reasons.slice(0, 3).map((r: string) => `- ▹ ${r}`).join('\n')}
 
@@ -340,6 +350,10 @@ async function run() {
   console.log(`  - Downstream Blast Radius: ${analysis.affectedFiles}`);
   console.log(`  - Propagation Depth: ${analysis.summary.maxImpactDepth} hops`);
 
+  console.log('🤖 Invoking IBM Bob Agentic Remediation & Test Shield...');
+  const bob = await generateBobAnalysis(analysis, prData.changedFiles, prData.repositoryFiles);
+  console.log(`✓ IBM Bob synthesized ${bob.remediationPatches.length} remediation patches & regression test shield.`);
+
   console.log('📝 Generating PR Markdown Report...');
   const commentBody = generatePrCommentBody(analysis, {
     number: target.prNumber,
@@ -347,7 +361,7 @@ async function run() {
     url: target.prUrl,
     owner: target.owner,
     repo: target.repo,
-  });
+  }, bob);
 
   console.log('🚀 Publishing report comment to Pull Request...');
   const commentUrl = await postOrUpdateComment(target, commentBody);
